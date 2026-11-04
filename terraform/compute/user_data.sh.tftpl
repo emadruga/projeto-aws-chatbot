@@ -1,0 +1,71 @@
+#!/bin/bash
+# Script de boot de cada EC2 (o mesmo em A e B).
+# A aplicação é a ÚLTIMA coisa a subir: a porta 80 só responde quando tudo está pronto,
+# e assim o health check do ALB não manda tráfego para uma instância "pela metade".
+set -euxo pipefail
+
+# O cloud-init roda este script sem a variável HOME, e o cliente "ollama" exige que ela exista
+export HOME=/root
+
+# 1) Pacotes
+dnf install -y python3-pip zstd tar
+pip3 install flask gunicorn psycopg2-binary
+
+# 2) Ollama (servidor do modelo, só em localhost)
+curl -fsSL https://ollama.com/install.sh | sh
+mkdir -p /etc/systemd/system/ollama.service.d
+cat > /etc/systemd/system/ollama.service.d/override.conf <<'CONF'
+[Service]
+Environment="OLLAMA_NUM_PARALLEL=${num_parallel}"
+Environment="OLLAMA_KEEP_ALIVE=-1"
+CONF
+systemctl daemon-reload
+systemctl enable ollama
+systemctl restart ollama
+until curl -sf http://127.0.0.1:11434/api/tags > /dev/null; do sleep 2; done
+
+# 3) Modelo + aquecimento (carrega o modelo na RAM)
+ollama pull ${model}
+curl -sf http://127.0.0.1:11434/api/chat \
+  -d '{"model":"${model}","messages":[{"role":"user","content":"oi"}],"stream":false}' > /dev/null
+
+# 4) Código da aplicação (veio embutido no user_data, comprimido)
+mkdir -p /opt/chat
+echo '${app_py_gz}' | base64 -d | gunzip > /opt/chat/app.py
+echo '${index_html_gz}' | base64 -d | gunzip > /opt/chat/index.html
+
+# 5) Base de conhecimento: baixada do S3 com as credenciais do LabInstanceProfile (sem chaves fixas)
+aws s3 cp "s3://${kb_bucket}/${kb_key}" /opt/chat/conhecimento.txt
+
+# 6) Configuração (inclui a senha do banco: só o root lê este arquivo)
+cat > /etc/chat.env <<'CONF'
+DB_HOST=${db_host}
+DB_NAME=${db_name}
+DB_USER=${db_user}
+DB_PASSWORD=${db_password}
+MODEL=${model}
+KB_FILE=/opt/chat/conhecimento.txt
+HISTORY_MESSAGES=${history_messages}
+SEED_USERS=${seed_users}
+SEED_PASSWORD=${seed_password}
+CONF
+chmod 600 /etc/chat.env
+
+# 7) Serviço da aplicação na porta 80 (gunicorn com várias threads; cada pergunta espera o modelo)
+cat > /etc/systemd/system/chat.service <<'CONF'
+[Unit]
+Description=Chatbot Gemma
+After=network-online.target ollama.service
+
+[Service]
+EnvironmentFile=/etc/chat.env
+WorkingDirectory=/opt/chat
+ExecStart=/usr/bin/python3 -m gunicorn --workers 1 --threads 16 --timeout 300 --bind 0.0.0.0:80 app:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+CONF
+systemctl daemon-reload
+systemctl enable --now chat

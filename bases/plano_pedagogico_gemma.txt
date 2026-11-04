@@ -1,0 +1,78 @@
+# CURSO TÉCNICO EM SEGURANÇA CIBERNÉTICA (IFF + INMETRO) — RESUMO DO PLANO PEDAGÓGICO
+
+## Identificação
+- Instituições: Instituto Federal Fluminense (IFF), Campus Cabo Frio, em parceria com o Inmetro.
+- Local das aulas: Campus Inmetro, Av. N. Sra. das Graças, 50, Xerém, Duque de Caxias - RJ.
+- Título conferido: Técnico em Segurança Cibernética. Eixo: Informação e Comunicação.
+- Forma de oferta: concomitante ao Ensino Médio. Turno: tarde. Matrícula semestral.
+- Público-alvo: estudantes a partir do 2º ano do Ensino Médio, de escola pública ou privada.
+- Ingresso: processo seletivo com edital do IFF; também transferência interna ou externa.
+- Vagas: 22 por oferta.
+- Duração: 4 semestres. Integralização: mínimo 2 anos, máximo 5 anos (sem contar trancamento).
+- Carga horária total: 1.220 horas (1.200 h de disciplinas + 20 h do Seminário opcional).
+- Parte das disciplinas tem carga horária a distância (EAD), usando plataformas Cisco Networking Academy e AWS Academy.
+- Coordenação: Ewerton Longoni Madruga, Ph.D. (pesquisador do Inmetro).
+
+## Objetivo do curso
+Formar profissionais de Informática capazes de investigar e resolver problemas de Segurança Cibernética, prontos para equipes de TI e para atuar em metrologia e avaliação da conformidade em laboratórios acreditados pelo Inmetro.
+
+## O que o egresso sabe fazer
+1. Atuar como operador de incidentes em um Centro de Operações de Segurança (SOC).
+2. Levantar vulnerabilidades em aplicações Web.
+3. Administrar sistemas operacionais em datacenter ou na nuvem.
+4. Extrair dados para analisar brechas de segurança.
+5. Escolher métodos para integridade, confidencialidade e autenticação.
+6. Apoiar políticas de controle de acesso (senhas, certificados).
+7. Usar ferramentas como IPSEC, OpenSSL e OpenVPN.
+
+## Onde trabalha
+Empresas pequenas e médias: apoio à TI, de operador a analista júnior. Empresas grandes: começa como operador de SOC e pode evoluir para analista em Resposta a Incidentes, Threat Hunting, Testes de Invasão ou Forense. Com experiência, pode chegar a analista sênior ou consultor.
+
+## Matriz curricular (horas; P = presencial, D = a distância; pré-requisito entre parênteses)
+### 1º período (300 h)
+- Matemática para Informática, 30 h (30P): conjuntos numéricos, conversão de unidades, razão, proporção, porcentagem.
+- Introdução à Programação de Computadores, 60 h (60P): Python básico, variáveis, decisões, repetições, listas, dicionários, funções, introdução a orientação a objetos.
+- Fundamentos de Segurança Cibernética, 90 h (18P/72D): ataques e técnicas, proteção de dados e privacidade, proteção da empresa.
+- Fundamentos de Informática, 60 h (12P/48D): hardware, software, sistemas operacionais, redes.
+- Fundamentos de Metrologia, 30 h (15P/15D): Sistema Internacional de Unidades, o Inmetro, avaliação da conformidade, acreditação.
+- Língua Inglesa Aplicada à Tecnologia, 30 h (15P/15D): leitura técnica, cognatos, skimming e scanning.
+
+### 2º período (300 h)
+- Matemática para Criptologia, 30 h (Mat. para Informática): divisibilidade, bases numéricas, lógica, aritmética modular.
+- Fundamentos de Redes de Computadores, 60 h (Fund. de Informática): modelos e protocolos, Ethernet, IPv4, IPv6, roteador, HTTP.
+- Bancos de Dados, 60 h (Intro. à Programação): modelagem e linguagem SQL.
+- Programação de Sistemas Embarcados, 30 h (Intro. à Programação): Arduino e Internet das Coisas.
+- Políticas de Segurança, 30 h (Fund. de Seg. Cibernética): ameaças, confidencialidade, integridade, disponibilidade.
+- Algoritmos e Estrutura de Dados, 30 h (Intro. à Programação): recursão, listas, pilhas, filas, árvores.
+- Sistemas Operacionais para Redes de Computadores, 60 h (Fund. de Informática): Linux, linha de comando, usuários, permissões, processos, SSH, logs, pacotes.
+
+### 3º período (300 h)
+- Fundamentos de Criptologia, 30 h (Mat. para Criptologia): criptografia simétrica e assimétrica, troca de chaves, assinatura digital.
+- Programação de Aplicações Web, 60 h (Intro. à Programação): JavaScript, DOM, eventos.
+- Sistemas Embarcados e Aplicações Móveis, 60 h (Prog. de Sist. Embarcados): Android, depuração, tráfego de rede, superfícies de ataque.
+- Virtualização e Computação em Nuvem, 30 h (Fund. de Redes): servidores virtuais, armazenamento, bancos de dados, balanceadores de carga, segurança e custos na nuvem.
+- Segurança Defensiva, 60 h (Fund. de Redes): VLANs, redundância de rede, segurança em redes locais, roteamento IPv4.
+- Operações em Segurança Cibernética, 60 h (Fund. de Redes): rotina de SOC, ameaças e ataques, controle de acesso, análise de alertas, forense e resposta a incidentes.
+
+### 4º período (300 h)
+- Aplicações de Criptologia, 30 h (Fund. de Criptologia): infraestrutura de chaves públicas, GPG, OpenSSL, criptologia na Metrologia.
+- Gestão e Planejamento Profissional, 60 h: mercado de trabalho em TI, currículo digital, networking, plano de carreira.
+- Serviços de Redes de Computadores em Nuvem, 60 h (Virtualização e Computação em Nuvem): ambientes em escala, eficiência e segurança, tecnologias emergentes.
+- Segurança Ofensiva: Aplicações Web, 60 h (Prog. de Aplicações Web): OWASP Top 10, proxy de interceptação, XSS, CSRF, injeção SQL, autenticação.
+- Empreendedorismo, 30 h: Design Thinking, Business Model Canvas, OKR, MVP, storytelling.
+- Inteligência Artificial Aplicada à Segurança Cibernética, 60 h (Intro. à Programação): aprendizado de máquina, detecção de ameaças, redes adversárias generativas, ética em IA.
+
+### Opcional
+- Seminários de Formação Profissional, 20 h: pode ser cursado no semestre seguinte ao término de todas as disciplinas obrigatórias.
+
+## Avaliação e aprovação
+- Notas de 0 a 10, com uma casa decimal. Pelo menos 2 avaliações diferentes por bimestre em cada disciplina.
+- Média semestral = (nota do 1º bimestre + nota do 2º bimestre) / 2. Aprovação com média ≥ 6,0 e frequência ≥ 75%.
+- Recuperação paralela: quem fica abaixo de 60% no bimestre faz recuperação. Nova média = (média do bimestre + 2 × nota da recuperação) / 3, e só vale se for maior que a anterior. É preciso ter ao menos uma nota no bimestre.
+- O aluno reprovado em uma ou mais disciplinas fica REPROVADO no semestre. Não há progressão parcial (dependência).
+- Aproveitamento de disciplinas: possível para disciplinas cursadas com aprovação nos últimos 5 anos, no mesmo nível ou superior.
+
+## Estágio e prática profissional
+- Não há estágio obrigatório. O estágio é opcional, liberado após cumprir 50% da carga horária do curso, no Inmetro ou em instituição conveniada ao IFF.
+- Estágio: no máximo 6 horas por dia e 30 por semana, sem vínculo empregatício, com termo de compromisso e seguro contra acidentes. As horas entram no histórico escolar.
+- A prática profissional acontece ao longo do curso: aulas em laboratório, visitas técnicas, seminários e projetos com pesquisadores do Inmetro.

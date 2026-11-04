@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chatbot do Curso</title>
+<style>
+  body { font-family: sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+  .msg { margin: .5rem 0; padding: .5rem .75rem; border-radius: 8px; white-space: pre-wrap; }
+  .user { background: #e3f2fd; } .assistant { background: #f1f1f1; }
+  .meta { color: #777; font-size: .8rem; }
+  form { display: flex; gap: .5rem; margin-top: 1rem; } input { flex: 1; padding: .5rem; }
+  #chat { display: none; } #err { color: #c00; }
+</style>
+</head>
+<body>
+<h1>Chatbot do Curso</h1>
+<div id="auth">
+  <form id="authForm">
+    <input id="u" placeholder="usuário" autocomplete="username">
+    <input id="p" type="password" placeholder="senha" autocomplete="current-password">
+    <button data-action="login">Entrar</button>
+    <button data-action="register">Criar conta</button>
+  </form>
+</div>
+<div id="chat">
+  <div id="log"></div>
+  <form id="chatForm"><input id="q" autocomplete="off" placeholder="Pergunte sobre o curso"><button>Enviar</button></form>
+</div>
+<p id="err"></p>
+<script>
+  var token = null;
+  var $ = function (id) { return document.getElementById(id); };
+
+  function add(role, text, meta) {
+    var d = document.createElement("div");
+    d.className = "msg " + role;
+    d.textContent = text;
+    if (meta) { var m = document.createElement("div"); m.className = "meta"; m.textContent = meta; d.appendChild(m); }
+    $("log").appendChild(d);
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+
+  async function api(path, body) {
+    var opts = { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json" } };
+    if (token) opts.headers.Authorization = "Bearer " + token;
+    if (body) opts.body = JSON.stringify(body);
+    var r = await fetch(path, opts);
+    var data = await r.json();
+    if (!r.ok) throw new Error(data.error || r.status);
+    return data;
+  }
+
+  $("authForm").onsubmit = async function (e) {
+    e.preventDefault();
+    $("err").textContent = "";
+    var cred = { username: $("u").value, password: $("p").value };
+    try {
+      if (e.submitter.dataset.action === "register") await api("/api/register", cred);
+      token = (await api("/api/login", cred)).token;
+      $("auth").style.display = "none";
+      $("chat").style.display = "block";
+      var h = await api("/api/history");
+      h.messages.forEach(function (m) { add(m.role, m.content, m.served_by ? "servidor: " + m.served_by : ""); });
+    } catch (err) { $("err").textContent = err.message; }
+  };
+
+  $("chatForm").onsubmit = async function (e) {
+    e.preventDefault();
+    var text = $("q").value.trim();
+    if (!text) return;
+    $("q").value = "";
+    add("user", text);
+    var t0 = performance.now();
+    try {
+      var r = await api("/api/chat", { message: text });
+      add("assistant", r.reply, "servidor: " + r.served_by + " · " + Math.round(performance.now() - t0) + " ms");
+    } catch (err) { $("err").textContent = err.message; }
+  };
+</script>
+</body>
+</html>

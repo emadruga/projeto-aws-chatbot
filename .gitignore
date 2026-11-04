@@ -1,0 +1,17 @@
+# Nunca versionar: segredos e estado do Terraform
+*.pem
+*.tfstate
+*.tfstate.*
+*.saved
+.terraform/
+*.tfvars.secret
+
+# Python / ambiente local
+venv/
+__pycache__/
+*.pyc
+.vscode/
+.DS_Store
+
+# Resultados dos testes de cada aluno
+loadtest/resultados/

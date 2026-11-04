@@ -1,0 +1,8 @@
+# Scripts que rodam no Linux (EC2 e gerador de carga) precisam de fim de linha LF,
+# mesmo quando o repositório é clonado no Windows.
+*.sh     text eol=lf
+*.tftpl  text eol=lf
+*.js     text eol=lf
+*.py     text eol=lf
+*.tf     text eol=lf
+*.tfvars text eol=lf
