@@ -335,7 +335,56 @@ Confira em EC2 e RDS que nada ficou rodando: recursos esquecidos consomem o cré
 
 ---
 
-## 5. Problemas comuns
+## 5. Consultando o banco de dados (psql)
+
+O chatbot guarda usuários, sessões e o histórico das conversas no **RDS Postgres**. Você pode olhar esses
+dados com o `psql`, mas **só de dentro de uma EC2 do chatbot**: o banco é privado e só aceita conexões de
+quem tem o security group `app` (o "crachá" das EC2). Do seu computador a conexão não chega ao banco.
+
+> **E pelo console da AWS?** O console do RDS mostra o status e os gráficos do CloudWatch (CPU, conexões),
+> mas **não tem editor de SQL** para este tipo de banco. Para ver as tabelas, use o `psql` na EC2.
+
+**1. Entre na EC2 e instale o cliente** (Amazon Linux 2023):
+
+```bash
+ssh -i labsuser.pem ec2-user@<IP-DA-EC2>     # o comando completo sai de: terraform output ssh
+sudo dnf install -y postgresql16
+```
+
+**2. Conecte ao banco.** O endereço, o usuário e a senha ficam em `/etc/chat.env` (só o administrador lê).
+Este comando lê o arquivo e conecta, sem você digitar a senha:
+
+```bash
+sudo bash -c 'set -a; . /etc/chat.env; set +a; PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -U "$DB_USER" "$DB_NAME"'
+```
+
+**3. Consultas úteis.** O banco tem 3 tabelas: `users`, `sessions` e `messages`.
+
+```sql
+\dt                                    -- lista as tabelas
+SELECT count(*) FROM users;            -- quantos usuários existem
+SELECT count(*) FROM messages;         -- quantas mensagens foram gravadas
+
+-- quantas respostas cada EC2 deu (na Arquitetura B, mostra como o balanceador dividiu o trabalho)
+SELECT served_by, count(*) FROM messages
+WHERE role = 'assistant' GROUP BY served_by;
+
+-- mensagens por usuário
+SELECT u.username, count(*) FROM messages m
+JOIN users u ON u.id = m.user_id GROUP BY u.username ORDER BY 1;
+
+-- as 5 últimas mensagens
+SELECT created_at, role, left(content, 60) FROM messages ORDER BY id DESC LIMIT 5;
+```
+
+Para sair do `psql`, digite `\q`.
+
+> ⚠️ **Não consulte o banco durante as medições do teste de carga.** Isso soma trabalho ao banco e atrapalha
+> a verificação de que ele não é o gargalo. Faça as consultas antes ou depois de cada repetição.
+
+---
+
+## 6. Problemas comuns
 
 | Sintoma | Causa provável | Solução |
 |---|---|---|
