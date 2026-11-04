@@ -157,8 +157,10 @@ print de cada gráfico para o relatório.
 
 ## 5. Orçamento de tempo
 
-Uma repetição leva cerca de **20 minutos**: aquecimento (1 min) + 5 passos × (3 min + 30 s de pausa)
-+ perguntas finalizando. A sessão do Learner Lab dura 4 horas, por isso o teste é dividido em
+Uma repetição leva **20 minutos ou mais**: aquecimento (1 min) + 5 passos × (3 min + 30 s de pausa)
++ perguntas finalizando. Com os timeouts em 1200 s, os passos com muitos usuários só terminam quando
+todas as perguntas em andamento respondem, então a duração cresce com a saturação. Meça no piloto
+e refaça esta tabela com os tempos reais. A sessão do Learner Lab dura 4 horas, por isso o teste é dividido em
 **duas sessões**:
 
 | Sessão | Etapa | Tempo aproximado |
@@ -166,11 +168,11 @@ Uma repetição leva cerca de **20 minutos**: aquecimento (1 min) + 5 passos × 
 | **1** | Criar camada `base` (RDS leva ~10 min) e gerador de carga | 15 min |
 | | `apply` de A e espera até ficar pronta | 15 min |
 | | Teste de fumaça + preenchimento do histórico + piloto | 15 min |
-| | 3 repetições em A | 60 min |
+| | 3 repetições em A | a medir no piloto (≥ 60 min) |
 | | `destroy` de A | 5 min |
 | **2** | `apply` de B e espera até os dois alvos ficarem `healthy` | 15 min |
 | | Teste de fumaça + verificação do balanceamento | 10 min |
-| | 3 repetições em B | 60 min |
+| | 3 repetições em B | a medir no piloto (≥ 60 min) |
 | | Teste de falha em B (opcional) | 15 min |
 | | `destroy` de B, cópia dos resultados | 10 min |
 
@@ -230,7 +232,7 @@ com 2, 4, 8 e 16 usuários em A e em B. Preencha a tabela **antes** das repetiç
 Justifique o modelo em 3 a 5 linhas. Escolha também um **critério de aceitável** (por exemplo,
 "p95 até 60 s") e estime quantos usuários cada arquitetura suportaria.
 
-⚠️ Se a latência passar do timeout (300 s), as requisições falham. Isso é um resultado (o sistema
+⚠️ Os timeouts (k6, gunicorn, app e ALB) estão em 1200 s. Se a latência passar disso, as requisições falham. Isso é um resultado (o sistema
 saturou), não um defeito do teste.
 
 ### 6.4 Cenário A — 3 repetições

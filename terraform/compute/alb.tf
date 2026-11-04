@@ -29,7 +29,7 @@ resource "aws_lb" "app" {
   load_balancer_type = "application"
   subnets            = local.subnet_ids
   security_groups    = [aws_security_group.alb[0].id]
-  idle_timeout       = 300 # padrão é 60 s; respostas do LLM sob carga podem demorar mais
+  idle_timeout       = 1200 # padrão é 60 s; respostas do LLM sob carga podem demorar mais
 }
 
 resource "aws_lb_target_group" "app" {

@@ -18,6 +18,13 @@ cat > /etc/systemd/system/ollama.service.d/override.conf <<'CONF'
 [Service]
 Environment="OLLAMA_NUM_PARALLEL=${num_parallel}"
 Environment="OLLAMA_KEEP_ALIVE=-1"
+# O Gemma 2 usa atenção com "janela deslizante" (SWA). Sem a opção abaixo, o servidor só consegue
+# reaproveitar o cache do prompt de sistema em pontos fixos e relê mais de mil tokens a cada pergunta
+# (prefill muito maior). Não aumenta o uso de memória (janela = contexto = 4096).
+Environment="LLAMA_ARG_SWA_FULL=1"
+# Limita o cache de prompts antigos guardado em RAM. O padrão (8 GB) é maior que a memória da m5.large
+# e o kernel matava o servidor do modelo (OOM) depois de alguns usuários diferentes.
+Environment="LLAMA_ARG_CACHE_RAM=1024"
 CONF
 systemctl daemon-reload
 systemctl enable ollama
@@ -51,7 +58,32 @@ SEED_PASSWORD=${seed_password}
 CONF
 chmod 600 /etc/chat.env
 
-# 7) Serviço da aplicação na porta 80 (gunicorn com várias threads; cada pergunta espera o modelo)
+# 7) Aquecimento do cache: 2 perguntas AO MESMO TEMPO (uma por slot do Ollama), com o MESMO prompt de
+#    sistema da aplicação. Sem isso, as primeiras perguntas reais pagam ~2 min de prefill.
+#    Falha aqui não impede o boot: no pior caso a instância sobe com o cache frio.
+cd /opt/chat
+set -a; . /etc/chat.env; set +a
+python3 - <<'PY' || echo "aviso: aquecimento do cache falhou; a instancia sobe com o cache frio"
+import json, threading, urllib.request
+import app  # monta o SYSTEM_PROMPT exatamente como no atendimento real
+
+def aquecer(pergunta):
+    opcoes = {**app.OPTIONS, "num_predict": 8}  # resposta curta: só importa o modelo ler o prompt
+    corpo = json.dumps({"model": app.MODEL, "stream": False, "options": opcoes, "messages": [
+        {"role": "system", "content": app.SYSTEM_PROMPT}, {"role": "user", "content": pergunta}]})
+    req = urllib.request.Request(app.OLLAMA_URL, data=corpo.encode(), headers={"Content-Type": "application/json"})
+    urllib.request.urlopen(req, timeout=900).read()
+
+perguntas = ["Quantas vagas o curso oferece?", "Onde são as aulas?"]
+threads = [threading.Thread(target=aquecer, args=(p,)) for p in perguntas]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+print("aquecimento concluido")
+PY
+
+# 8) Serviço da aplicação na porta 80 (gunicorn com várias threads; cada pergunta espera o modelo)
 cat > /etc/systemd/system/chat.service <<'CONF'
 [Unit]
 Description=Chatbot Gemma
@@ -60,7 +92,7 @@ After=network-online.target ollama.service
 [Service]
 EnvironmentFile=/etc/chat.env
 WorkingDirectory=/opt/chat
-ExecStart=/usr/bin/python3 -m gunicorn --workers 1 --threads 16 --timeout 300 --bind 0.0.0.0:80 app:app
+ExecStart=/usr/bin/python3 -m gunicorn --workers 1 --threads 16 --timeout 1200 --bind 0.0.0.0:80 app:app
 Restart=always
 RestartSec=5
 

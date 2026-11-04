@@ -42,7 +42,7 @@ const passo = __ENV.ITERACOES
       executor: 'constant-vus',
       vus: Number(__ENV.VUS || 1),
       duration: __ENV.DURACAO || '3m',
-      gracefulStop: '5m', // perguntas iniciadas antes do fim terminam e são contadas
+      gracefulStop: '25m', // perguntas iniciadas antes do fim terminam e são contadas (deve ser > timeout)
     };
 
 export const options = {
@@ -68,7 +68,7 @@ export default function () {
   const i = (exec.vu.iterationInScenario + exec.vu.idInTest) % PERGUNTAS.length;
   const res = http.post(`${URL}/api/chat`, JSON.stringify({ message: PERGUNTAS[i] }), {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    timeout: '300s',
+    timeout: '1200s', // alto de propósito: saturação deve aparecer como latência, não como erro
     tags: { name: 'chat' },
   });
 

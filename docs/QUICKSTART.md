@@ -170,7 +170,7 @@ terraform output url     # endereço do chatbot
 terraform output ssh     # comando SSH da instância
 ```
 
-Espere de 5 a 10 minutos e teste até receber `200`:
+Espere cerca de 10 minutos (o boot inclui o aquecimento do modelo) e teste até receber `200`:
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}\n" $(terraform output -raw url)
@@ -347,5 +347,5 @@ Confira em EC2 e RDS que nada ficou rodando: recursos esquecidos consomem o cré
 | `Unable to read remote state` em compute | `base` ainda não foi aplicado | Rodar o passo 3.1 primeiro |
 | `destroy` da `base` falha ou trava (security group em uso, `DependencyViolation`) | A `compute` ainda existe | Rodar antes `terraform destroy -var-file=<cenário>.tfvars` em `terraform/compute` |
 | `login de alunoNN falhou: 401` no k6 | `SENHA` diferente do `seed_password` | Usar a mesma senha do `.tfvars` |
-| Erros apenas nos passos com muitos usuários | Possível saturação (timeout de 300 s) | Investigue; pode ser um resultado (plano, seção 7) |
+| Erros apenas nos passos com muitos usuários | Possível saturação (timeout de 1200 s) | Investigue; pode ser um resultado (plano, seção 7) |
 | `bad interpreter` no gerador | Fim de linha do Windows | `sed -i 's/\r$//' rodar_cenario.sh` |

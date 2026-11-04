@@ -111,7 +111,7 @@ def current_user():
 def ask_ollama(messages):
     body = json.dumps({"model": MODEL, "messages": messages, "stream": False, "options": OPTIONS})
     req = urllib.request.Request(OLLAMA_URL, data=body.encode(), headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=300) as resp:
+    with urllib.request.urlopen(req, timeout=1200) as resp:
         return json.load(resp)
 
 

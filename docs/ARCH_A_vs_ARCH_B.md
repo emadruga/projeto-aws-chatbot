@@ -236,18 +236,23 @@ resource "aws_vpc_security_group_ingress_rule" "ssh" {
 Todos os recursos de `alb.tf` usam `count = var.use_alb ? 1 : 0`: em A, eles simplesmente não
 existem. São 5 recursos: security group do ALB, `aws_lb`, `aws_lb_target_group` (health check em
 `/`), `aws_lb_listener` (porta 80) e `aws_lb_target_group_attachment` (um por EC2). O
-`idle_timeout` é de 300 s, porque o padrão de 60 s gera erros 504 quando o modelo demora sob carga.
+`idle_timeout` é de 1200 s, porque o padrão de 60 s gera erros 504 quando o modelo demora sob carga.
 
 ### 7.4 O que o user_data faz no boot (na ordem)
 
 1. Instala Python, Flask, gunicorn e o driver do Postgres.
-2. Instala o Ollama e fixa `OLLAMA_NUM_PARALLEL` (igual em todos os cenários).
+2. Instala o Ollama e fixa suas opções (iguais em todos os cenários): `OLLAMA_NUM_PARALLEL`,
+   `LLAMA_ARG_SWA_FULL` (cache do prompt reaproveitável no Gemma 2) e `LLAMA_ARG_CACHE_RAM`
+   (limita a memória do cache, senão o servidor do modelo é morto por falta de RAM).
 3. Baixa o modelo `gemma2:2b` e faz uma chamada de aquecimento.
 4. Grava o código da aplicação (`app.py`, `index.html`), que vai embutido e comprimido no
    próprio user_data (cerca de 8 KB; o limite da AWS é 16 KB).
 5. Baixa a base de conhecimento do S3: `aws s3 cp s3://<bucket>/conhecimento/plano_pedagogico.txt`.
 6. Grava `/etc/chat.env` com o endereço e a senha do banco (só o root lê).
-7. **Por último**, sobe a aplicação na porta 80. Assim o health check do ALB só passa quando a
+7. **Aquecimento do cache:** envia 2 perguntas ao mesmo tempo, com o mesmo prompt de sistema da
+   aplicação (uma por slot do Ollama). Leva alguns minutos, e é isso que faz as primeiras
+   perguntas reais já serem rápidas.
+8. **Por último**, sobe a aplicação na porta 80. Assim o health check do ALB só passa quando a
    instância está completamente pronta.
 
 > Simplificação didática: a senha do banco passa pelo user_data, que é visível no console da EC2.
@@ -295,7 +300,7 @@ terraform apply
 cd ../compute
 terraform init                      # só na primeira vez
 terraform apply -var-file=a.tfvars
-terraform output url                # aguarde ~5–10 min até a página abrir
+terraform output url                # aguarde alguns minutos (~10) até a página abrir
 terraform output ssh                # comando SSH da instância
 # ... testes de carga, salvar resultados ...
 terraform destroy -var-file=a.tfvars
