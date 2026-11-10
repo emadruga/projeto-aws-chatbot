@@ -108,11 +108,12 @@ terraform/
 ├── base/                  # CAMADA DE DADOS
 │   ├── provider.tf
 │   ├── variables.tf
+│   ├── nomes.tf           # prefixo dos recursos = nome do aluno (aws sts get-caller-identity)
 │   ├── main.tf            # SGs app/db, RDS Postgres, bucket S3 + arquivo (via AWS CLI)
 │   └── outputs.tf         # o que a camada compute vai ler
 └── compute/               # CAMADA DE COMPUTAÇÃO
     ├── provider.tf
-    ├── variables.tf       # instance_count, use_alb, ssh_cidr, modelo...
+    ├── variables.tf       # instance_count, instance_type, use_alb, ssh_cidr, modelo...
     ├── main.tf            # remote state, SG web, EC2
     ├── alb.tf             # ALB (só existe se use_alb = true)
     ├── outputs.tf         # url e comandos SSH
@@ -169,7 +170,7 @@ que ele sobe.
 
 ```hcl
 resource "terraform_data" "knowledge" {
-  input = { bucket = "nuvem-kb-${random_id.kb.hex}", key = "conhecimento/plano_pedagogico.txt", ... }
+  input = { bucket = "${local.prefixo}-kb-${random_id.kb.hex}", key = "conhecimento/plano_pedagogico.txt", ... }
 
   provisioner "local-exec" {   # cria o bucket com a AWS CLI
     command = "aws s3api create-bucket --bucket ${self.input.bucket} --region us-east-1"
@@ -320,7 +321,7 @@ terraform destroy
 **Como saber se está pronto**
 
 - Arch A: `curl -s -o /dev/null -w "%{http_code}" $(terraform output -raw url)` retorna `200`.
-- Arch B: em *EC2 → Target Groups → nuvem-tg → Targets*, os dois alvos aparecem `healthy`.
+- Arch B: em *EC2 → Target Groups → <prefixo>-tg → Targets*, os dois alvos aparecem `healthy`.
 
 **Teste rápido da API**
 
@@ -349,7 +350,7 @@ Comandos úteis dentro da instância:
 | Acompanhar o boot | `sudo tail -f /var/log/cloud-init-output.log` |
 | Logs da aplicação | `sudo journalctl -u chat -f` |
 | Logs do Ollama | `sudo journalctl -u ollama -f` |
-| Ver o uso de CPU durante o teste | `top` (observe o processo `ollama`) |
+| Ver o uso de CPU durante o teste | `top` (observe os processos `ollama` e `llama-server`, que roda o modelo) |
 | Ver a base de conhecimento baixada do S3 | `less /opt/chat/conhecimento.txt` |
 | Consultar o RDS | `sudo dnf install -y postgresql16` e depois `psql -h <db_host> -U chatbot chatbot` |
 
@@ -375,7 +376,10 @@ de novo: só a regra do security group muda, sem recriar a instância.
 
 ## 12. Cuidados no Learner Lab
 
-- **Tipos de instância:** só até `large`. Use o **mesmo `instance_type`** em todos os cenários.
+- **Tipos de instância:** só até `large` (o Terraform valida). `instance_type` vale para **todas** as EC2 e
+  `instance_count` define quantas há (de 1 a 15; as EC2 se alternam entre `us-east-1a` e `1b`). Use o **mesmo
+  `instance_type`** em todos os cenários e registre os dois no relatório (`terraform output configuracao`).
+  Tipos com menos de 8 GB de RAM podem causar falta de memória no Ollama.
   Instâncias t3 usam créditos de CPU, o que pode distorcer a comparação.
 - **Sessão de 4 h:** crie a base no começo da aula; planeje apply → teste → destroy de cada
   cenário dentro da mesma sessão. Se a sessão expirar, a base continua existindo (o RDS para,
@@ -384,3 +388,4 @@ de novo: só a regra do security group muda, sem recriar a instância.
 - **Primeiro boot demorado:** Ollama e modelo levam alguns minutos. Não comece o teste antes
   da URL responder `200` (A) ou dos alvos estarem `healthy` (B).
 - **Região:** o código assume `us-east-1` e as AZs `us-east-1a`/`us-east-1b`.
+

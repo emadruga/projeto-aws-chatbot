@@ -1,6 +1,7 @@
 // Teste de carga do chatbot — Projeto Nuvem 2026
 // Uso (normalmente via rodar_cenario.sh):
-//   k6 run -e URL=http://... -e SENHA=... -e VUS=4 -e DURACAO=3m carga.js
+//   k6 run -e URL=http://... -e SENHA=... -e VUS=4 -e ITERACOES=4 carga.js   (4 usuários × 4 perguntas)
+// Aquecimento (tempo fixo): k6 run -e URL=... -e SENHA=... -e VUS=2 -e DURACAO=30s carga.js
 // Preenchimento do histórico (uma vez só):
 //   k6 run -e URL=http://... -e SENHA=... -e VUS=16 -e ITERACOES=3 carga.js
 //
@@ -34,8 +35,8 @@ const geracao = new Trend('tempo_geracao', true);    // modelo escrevendo a resp
 const fila = new Trend('tempo_fila_e_rede', true);   // o resto: espera na fila + rede + banco
 const sucesso = new Rate('sucesso_chat');
 
-// Modo normal: N usuários por um tempo fixo (DURACAO).
-// Modo preenchimento (ITERACOES definido): cada usuário envia exatamente ITERACOES perguntas.
+// Modo medição e preenchimento (ITERACOES definido): cada usuário envia exatamente ITERACOES perguntas.
+// Modo aquecimento (sem ITERACOES): N usuários por um tempo fixo (DURACAO).
 const passo = __ENV.ITERACOES
   ? { executor: 'per-vu-iterations', vus: Number(__ENV.VUS || 1), iterations: Number(__ENV.ITERACOES), maxDuration: '60m' }
   : {

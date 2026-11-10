@@ -12,6 +12,10 @@ data "terraform_remote_state" "base" {
 
 locals {
   base = data.terraform_remote_state.base.outputs
+
+  # Prefixo = nome do aluno, definido na camada base (base/nomes.tf). Se a base for antiga e não
+  # tiver esse valor, usa "nuvem" (os nomes de antes), para o destroy continuar funcionando.
+  prefixo = try(local.base.prefixo, "nuvem")
 }
 
 # ---------- Rede: apenas LEMOS a VPC default ----------
@@ -51,7 +55,7 @@ data "aws_ami" "al2023" {
 
 # ---------- Security group "web" das EC2 ----------
 resource "aws_security_group" "web" {
-  name_prefix = "nuvem-web-"
+  name_prefix = "${local.prefixo}-web-"
   description = "Chatbot Gemma: HTTP e SSH"
   vpc_id      = data.aws_vpc.default.id
 }
@@ -127,6 +131,6 @@ resource "aws_instance" "web" {
   user_data_replace_on_change = true # mudou o código? a instância é recriada
 
   tags = {
-    Name = "nuvem-web-${count.index + 1}"
+    Name = "${local.prefixo}-web-${count.index + 1}"
   }
 }

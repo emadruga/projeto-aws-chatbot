@@ -123,6 +123,17 @@ Copie a pasta `projeto_nuvem_2026/` para o seu computador (pelo material da disc
    ssh_cidr      = "200.10.20.30/32"
    seed_password = "uma-senha-sua"
    ```
+   Nos mesmos arquivos estão `instance_count` (número de EC2) e `instance_type` (tipo de **todas** as EC2). Use o
+   **mesmo tipo** em A e B (padrão `m5.large`); só troque o número de EC2 se o professor pedir. Os valores são
+   validados: tipos de `nano` a `large`, de 1 a 15 instâncias. Também dá para passar na linha de comando:
+   `terraform apply -var-file=b.tfvars -var instance_count=4`.
+
+   **Prefixo com o seu nome.** Todos os recursos (EC2, ALB, banco, bucket, security groups) levam o seu nome como
+   prefixo, lido automaticamente do `aws sts get-caller-identity`: por exemplo, `maria-silva`
+   (`maria-silva-web-1`, `maria-silva-alb`...). Se o nome for muito longo, usa só o primeiro nome. Para ver ou
+   trocar: `terraform output prefixo` na pasta `base`, ou `terraform apply -var prefixo=meu-nome` na `base`.
+   No console, procure pelo seu nome. O gerador de carga (criado à mão) deve seguir o mesmo padrão:
+   `<prefixo>-gerador-carga`.
    > Se você mudar de rede (casa, escola, 4G), atualize o `ssh_cidr` e rode `terraform apply` de novo.
 
 ---
@@ -141,7 +152,7 @@ terraform apply          # digite "yes"; leva ~10 min por causa do RDS
 
 No **console da AWS** → EC2 → **Launch instance**:
 
-- Nome `gerador-carga` · AMI **Amazon Linux 2023** · tipo **t3.small** · key pair **vockey**
+- Nome `<prefixo>-gerador-carga` (o prefixo é o seu nome, veja a seção 2) · AMI **Amazon Linux 2023** · tipo **t3.small** · key pair **vockey**
 - Rede: VPC default, subnet em **us-east-1a**, IP público habilitado
 - Security group: novo, **SSH apenas de "My IP"**
 
@@ -158,7 +169,19 @@ ssh -i labsuser.pem ec2-user@<IP-GERADOR>
 sudo dnf install -y https://dl.k6.io/rpm/repo.rpm
 sudo dnf install -y k6
 chmod +x ~/loadtest/rodar_cenario.sh
+
+# 🖥️ instala o tmux: o teste dura de 30 a 60 min e continua rodando se a conexão SSH cair
+sudo dnf install -y tmux
 ```
+
+> **Por que `tmux`?** Se a conexão SSH cair, um comando comum é interrompido no meio do teste. Dentro do `tmux`
+> ele continua. Use `tmux new -s teste` para abrir, `Ctrl+B` e depois `D` para sair sem parar nada e
+> `tmux attach -t teste` para voltar. Para a conexão cair menos, entre com
+> `ssh -o ServerAliveInterval=30 -i labsuser.pem ec2-user@<IP>`.
+> Instale o `tmux` também na EC2 de A (`sudo dnf install -y tmux`) se for rodar o `vmstat` nele.
+
+> **Senha dos testes:** antes de rodar, execute `export SENHA=<seed_password>` no terminal do gerador. Não use
+> `SENHA=... && ./script`: com `&&` a variável não chega ao script.
 
 ### 3.3 Subir a Arquitetura A
 
@@ -194,27 +217,31 @@ k6 run -e URL=http://<IP-EC2-A> -e SENHA=<seed_password> -e VUS=16 -e ITERACOES=
 
 ```bash
 # 🖥️
-DURACAO=3m PASSOS="1" AQUECIMENTO=30s SENHA=<seed_password> ./rodar_cenario.sh PILOTO 1 http://<IP-EC2-A>
+export SENHA=<seed_password>
+PASSOS="1" ./rodar_cenario.sh PILOTO 1 http://<IP-EC2-A>     # 16 perguntas; anote quanto tempo levou
 ```
 
 No resumo impresso, veja `latencia_chat`:
 
 - `med` é o seu **S** (tempo de uma resposta com o servidor livre). Preencha a tabela de
   previsão da seção 6.3 do plano.
-- Se `count` for **menor que 20**, use `DURACAO=5m` em **todas** as repetições (A e B).
+- Todos os passos da rampa usam o mesmo número de respostas (**n = 16**): 1 usuário envia 16 perguntas, 4
+  enviam 4 cada, 16 enviam 1 cada. A análise junta as 3 repetições (48 respostas por passo).
 
 ### 3.6 Teste de carga em A — 3 repetições
 
-Para cada `R` = 1, 2, 3 (~20 min cada):
+Para cada repetição 1, 2, 3 (troque o `1` do comando e o `r1` do nome do arquivo pelo número da repetição; reserve até **~40 min cada**; veja a seção 5 do plano):
 
 ```bash
 # 💻 terminal 2: CPU da instância durante a repetição
 ssh -i labsuser.pem ec2-user@<IP-EC2-A>
-vmstat -t 5 | tee cpu_A_rR.txt         # deixe rodando; Ctrl+C ao fim da repetição
+vmstat -t 5 | tee cpu_A_r1.txt         # deixe rodando; Ctrl+C ao fim da repetição
 
 # 🖥️ terminal 1: o teste
-SENHA=<seed_password> ./rodar_cenario.sh A R http://<IP-EC2-A>
+./rodar_cenario.sh A 1 http://<IP-EC2-A>
 ```
+
+Rode dentro do `tmux`. O script faz um aquecimento e depois os passos de 1, 4 e 16 usuários.
 
 Não use a página do chatbot durante as medições.
 
@@ -260,24 +287,24 @@ terraform output url     # DNS do ALB
 terraform output ssh     # um comando SSH para cada uma das 2 instâncias
 ```
 
-Espere os dois alvos ficarem **healthy**: console → EC2 → **Target Groups** → `nuvem-tg` → **Targets**.
+Espere os dois alvos ficarem **healthy**: console → EC2 → **Target Groups** → `<prefixo>-tg` → **Targets**.
 
 **Teste de fumaça:** pela página, faça 4 ou 5 perguntas. O campo `servidor:` deve alternar
 entre as duas instâncias.
 
 ### 4.3 Teste de carga em B — 3 repetições
 
-Para cada `R` = 1, 2, 3, com a **mesma `DURACAO`** usada em A:
+Para cada repetição 1, 2, 3, com **exatamente o mesmo protocolo** usado em A (n = 16 respostas por passo; 1, 4 e 16 usuários):
 
 ```bash
 # 💻 terminais 2 e 3: uma coleta de CPU por instância
 ssh -i labsuser.pem ec2-user@<IP-EC2-B1>
-vmstat -t 5 | tee cpu_B_rR_ec2-1.txt
+vmstat -t 5 | tee cpu_B_r1_ec2-1.txt
 ssh -i labsuser.pem ec2-user@<IP-EC2-B2>
-vmstat -t 5 | tee cpu_B_rR_ec2-2.txt
+vmstat -t 5 | tee cpu_B_r1_ec2-2.txt
 
 # 🖥️ terminal 1
-SENHA=<seed_password> ./rodar_cenario.sh B R http://<DNS-DO-ALB>
+./rodar_cenario.sh B 1 http://<DNS-DO-ALB>
 ```
 
 ### 4.4 Teste de falha (opcional)
@@ -330,7 +357,7 @@ Antes de começar:
 - **Não apague os arquivos `terraform.tfstate`** de `base/` e `compute/`. O state é local e, sem ele, o Terraform perde o controle do que existe.
 - O RDS leva alguns minutos para ser removido. Os dados (usuários e histórico) são perdidos.
 
-E no console: EC2 → `gerador-carga` → **Instance state → Terminate**.
+E no console: EC2 → `<prefixo>-gerador-carga` → **Instance state → Terminate**.
 Confira em EC2 e RDS que nada ficou rodando: recursos esquecidos consomem o crédito do lab.
 
 ---
@@ -343,6 +370,13 @@ quem tem o security group `app` (o "crachá" das EC2). Do seu computador a conex
 
 > **E pelo console da AWS?** O console do RDS mostra o status e os gráficos do CloudWatch (CPU, conexões),
 > mas **não tem editor de SQL** para este tipo de banco. Para ver as tabelas, use o `psql` na EC2.
+
+> **Não consulte o banco durante uma repetição do teste de carga.** O `dnf install` e as consultas usam CPU e
+> rede da EC2 que está sendo medida, e o plano manda descartar a repetição se alguém intervir. Faça isto antes
+> de começar ou depois que a repetição terminar.
+
+> **Do gerador de carga não funciona.** O gerador tem o `psql`, mas o security group dele (`<prefixo>-gerador`) não é o
+> `app`, e o RDS recusa a conexão. Use sempre uma EC2 do chatbot.
 
 **1. Entre na EC2 e instale o cliente** (Amazon Linux 2023):
 
@@ -378,6 +412,34 @@ SELECT created_at, role, left(content, 60) FROM messages ORDER BY id DESC LIMIT 
 ```
 
 Para sair do `psql`, digite `\q`.
+
+**4. Atalho para consultas avulsas, sem abrir o `psql`.** Defina uma função uma vez na sessão SSH. Ela lê o
+`/etc/chat.env` e roda **uma** consulta por chamada:
+
+```bash
+# 🖥️ na EC2 (cole uma vez; vale até fechar o SSH)
+sql() { sudo bash -c 'set -a; . /etc/chat.env; set +a; PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -U "$DB_USER" "$DB_NAME" -c "$0"' "$1"; }
+
+sql '\dt'
+sql 'SELECT count(*) AS usuarios FROM users;'
+sql 'SELECT count(*) AS mensagens FROM messages;'
+sql 'SELECT count(*) AS sessoes FROM sessions;'          -- um token por login (cada usuário virtual do k6 faz um)
+sql 'SELECT created_at, role, left(content, 50) FROM messages ORDER BY id DESC LIMIT 3;'
+```
+
+Para filtrar por texto (aspas simples dentro da consulta), use aspas duplas por fora:
+
+```bash
+sql "SELECT served_by, count(*) FROM messages WHERE role = 'assistant' GROUP BY 1;"
+```
+
+**O que esperar** (depois do preenchimento do histórico, do piloto e das repetições
+na Arquitetura A): 3 tabelas (`messages`, `sessions`, `users`), **20 usuários** (`aluno01..aluno20`), centenas de
+mensagens (metade `user`, metade `assistant`), todas com o **mesmo `served_by`** (a única EC2 de A) e uma
+sessão por login. Na Arquitetura B, o `served_by` mostra a divisão entre as duas EC2.
+
+> **Cuidado:** as consultas acima só leem. Não use `DELETE` ou `DROP` no banco compartilhado: o histórico foi
+> preenchido uma vez (seção 3.4) e é o mesmo para A e B. Apagá-lo exige refazer o preenchimento.
 
 > ⚠️ **Não consulte o banco durante as medições do teste de carga.** Isso soma trabalho ao banco e atrapalha
 > a verificação de que ele não é o gargalo. Faça as consultas antes ou depois de cada repetição.

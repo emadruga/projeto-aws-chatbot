@@ -10,3 +10,6 @@ output "db_password" {
   value     = random_password.db.result
   sensitive = true
 }
+
+# Prefixo dos recursos (nome do aluno); a camada compute usa o mesmo
+output "prefixo" { value = local.prefixo }

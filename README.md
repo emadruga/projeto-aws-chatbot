@@ -3,7 +3,7 @@
 Projeto final da disciplina **Cloud Systems Architecture** (AWS Academy Learner Lab).
 
 Um site com um chatbot (Google Gemma 2 2B, servido via Ollama) responde dúvidas sobre o
-Curso Técnico em Segurança Cibernética (IFF + Inmetro). Você vai provisionar **duas
+Curso Técnico em Segurança Cibernética (IFF + Inmetro). Cada aluno, no seu próprio Learner Lab, vai provisionar **duas
 arquiteturas AWS** com Terraform, executar o mesmo teste de carga em cada uma e responder, **com dados**:
 
 > **Qual arquitetura entrega o menor tempo de resposta ao usuário final, de forma mais consistente?**
@@ -16,9 +16,10 @@ arquitetura, não a programação.
 
 ## Por onde começar
 
-1. [`docs/QUICKSTART.md`](docs/QUICKSTART.md) — roteiro passo a passo, do zero à análise
-2. [`docs/ARCH_A_vs_ARCH_B.md`](docs/ARCH_A_vs_ARCH_B.md) — como a infraestrutura é montada e por quê
-3. [`docs/PLANO_TESTE_DE_CARGA.md`](docs/PLANO_TESTE_DE_CARGA.md) — procedimento de medição e estrutura do relatório
+1. [`docs/ESCOPO_E_ATIVIDADES.md`](docs/ESCOPO_E_ATIVIDADES.md) — escopo, etapas, entregas e regras (slides em [`docs/slides/`](docs/slides/ESCOPO_E_ATIVIDADES.pptx))
+2. [`docs/QUICKSTART.md`](docs/QUICKSTART.md) — roteiro passo a passo, do zero à análise
+3. [`docs/ARCH_A_vs_ARCH_B.md`](docs/ARCH_A_vs_ARCH_B.md) — como a infraestrutura é montada e por quê
+4. [`docs/PLANO_TESTE_DE_CARGA.md`](docs/PLANO_TESTE_DE_CARGA.md) — procedimento de medição e estrutura do relatório
 
 ## Estrutura
 

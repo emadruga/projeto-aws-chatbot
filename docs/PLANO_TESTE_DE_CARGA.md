@@ -25,8 +25,9 @@ Neste projeto:
   `aluno01`, `aluno02`... e guarda o token; depois envia em sequência 8 **perguntas fixas** sobre o
   curso, com 1 s de pausa entre elas, e **mede** a latência total e suas partes (fila, prefill e
   geração), usando os tempos que a API devolve.
-- A **rampa de concorrência** fica no `loadtest/rodar_cenario.sh`, que chama o k6 cinco vezes, com
-  1, 2, 4, 8 e 16 usuários simultâneos, e salva um CSV por passo.
+- A **rampa de concorrência** fica no `loadtest/rodar_cenario.sh`, que chama o k6 três vezes, com
+  1, 4 e 16 usuários simultâneos, e salva um CSV por passo. Todos os passos têm o **mesmo número de
+  respostas** (n = 16): 1 usuário envia 16 perguntas, 4 enviam 4 cada, 16 enviam 1 cada.
 
 **Por que k6 e não ApacheBench (`ab`):** o `ab` é mais simples, mas não consegue fazer login e
 reaproveitar o token, não suporta bem um POST com JSON diferente para cada usuário e não exporta
@@ -38,7 +39,7 @@ os percentis de cada passo. O nosso teste precisa dessas três coisas.
 
 > **Qual arquitetura entrega o menor tempo de resposta ao usuário final, de forma mais consistente?**
 
-Antes de medir, cada grupo registra no relatório o que **espera** observar, com justificativa.
+Antes de medir, registre no relatório o que você **espera** observar, com justificativa.
 Escreva **hipóteses próprias**, testáveis e com números aproximados, sobre:
 
 - como a latência de A muda quando o número de usuários aumenta, e por quê (onde está o gargalo?);
@@ -63,7 +64,7 @@ A única coisa que pode mudar entre A e B é a **arquitetura de computação**. 
 | Banco e base de conhecimento | o **mesmo** RDS e S3 da camada `base` | `terraform/base` |
 | Perguntas | as mesmas 8 perguntas, na mesma ordem | `loadtest/carga.js` |
 | Gerador de carga | a **mesma** EC2, na mesma região e VPC | seção 3 |
-| Rampa | 1, 2, 4, 8, 16 usuários; 3 min por passo; 1 s de pausa entre perguntas | `rodar_cenario.sh` |
+| Rampa | 1, 4, 16 usuários; n = 16 respostas por passo (perguntas por usuário = 16 ÷ usuários); 1 s de pausa entre perguntas | `rodar_cenario.sh` |
 | Repetições | 3 por cenário | seção 6 |
 
 ⚠️ **Nunca rode o teste a partir do computador de casa ou da escola.** A latência da internet
@@ -77,7 +78,7 @@ até a Virgínia (us-east-1) e as oscilações do Wi-Fi entrariam nos dados.
 
 **Criação (uma vez, pelo console):** EC2 → *Launch instance*:
 
-- Nome: `gerador-carga`
+- Nome: `<prefixo>-gerador-carga` (prefixo = seu nome, ex.: `maria-silva`)
 - AMI: Amazon Linux 2023
 - Tipo: `t3.small` (o k6 é leve; 16 usuários não chegam perto do limite)
 - Key pair: `vockey`
@@ -132,7 +133,7 @@ Compare como cada uma das três partes se comporta quando o número de usuários
 
 ### 4.3 Uso de CPU nas instâncias (via SSH)
 
-O CloudWatch básico das EC2 tem um ponto a cada 5 minutos, pouco para passos de 3 minutos. Por
+O CloudWatch básico das EC2 tem um ponto a cada 5 minutos, pouco para passos de poucos minutos. Por
 isso a CPU é coletada **dentro da instância**, por SSH, durante cada repetição:
 
 ```bash
@@ -147,7 +148,7 @@ A coluna `id` (ocioso) próxima de 0 indica CPU saturada.
 
 | Serviço | Métricas | Cenário |
 |---|---|---|
-| ALB (`nuvem-alb`) | `TargetResponseTime`, `RequestCountPerTarget`, `HTTPCode_ELB_5XX_Count` | só B |
+| ALB (`<prefixo>-alb`) | `TargetResponseTime`, `RequestCountPerTarget`, `HTTPCode_ELB_5XX_Count` | só B |
 | RDS | `CPUUtilization`, `DatabaseConnections` | A e B (o banco é gargalo?) |
 
 Console → CloudWatch → *Metrics* → período de **1 minuto**, intervalo da repetição. Salve um
@@ -157,24 +158,27 @@ print de cada gráfico para o relatório.
 
 ## 5. Orçamento de tempo
 
-Uma repetição leva **20 minutos ou mais**: aquecimento (1 min) + 5 passos × (3 min + 30 s de pausa)
-+ perguntas finalizando. Com os timeouts em 1200 s, os passos com muitos usuários só terminam quando
-todas as perguntas em andamento respondem, então a duração cresce com a saturação. Meça no piloto
-e refaça esta tabela com os tempos reais. A sessão do Learner Lab dura 4 horas, por isso o teste é dividido em
+O protocolo usa **n fixo**: 16 respostas por passo, em 3 passos (1, 4 e 16 usuários), mais um aquecimento.
+O tempo de um passo é `n ÷ vazão`, então **a duração de uma repetição depende da arquitetura** e só é conhecida
+depois de medir. Use o piloto (seção 6.3) para estimar a sua. Para planejar, **reserve até ~40 min por
+repetição**, em A e em B. Fora das repetições ficam o boot de cada arquitetura, o preenchimento do histórico
+(uma vez no projeto) e o piloto. A sessão do Learner Lab dura 4 horas, por isso o teste é dividido em
 **duas sessões**:
 
 | Sessão | Etapa | Tempo aproximado |
 |---|---|---|
-| **1** | Criar camada `base` (RDS leva ~10 min) e gerador de carga | 15 min |
-| | `apply` de A e espera até ficar pronta | 15 min |
-| | Teste de fumaça + preenchimento do histórico + piloto | 15 min |
-| | 3 repetições em A | a medir no piloto (≥ 60 min) |
+| **1** | Criar camada `base` (RDS leva alguns minutos) e gerador de carga | 15 min |
+| | `apply` de A e espera até ficar pronta | 10 a 15 min |
+| | Teste de fumaça + preenchimento do histórico + piloto | ~35 min |
+| | 3 repetições em A | até ~2 h (meça e anote) |
 | | `destroy` de A | 5 min |
 | **2** | `apply` de B e espera até os dois alvos ficarem `healthy` | 15 min |
 | | Teste de fumaça + verificação do balanceamento | 10 min |
-| | 3 repetições em B | a medir no piloto (≥ 60 min) |
+| | 3 repetições em B | até ~2 h (meça e anote) |
 | | Teste de falha em B (opcional) | 15 min |
 | | `destroy` de B, cópia dos resultados | 10 min |
+
+Anote a duração real de cada repetição: ela também é um dado do relatório.
 
 A camada `base` e o gerador **sobrevivem entre sessões**: o Learner Lab os para ao fim da
 sessão e os religa no início da próxima. O histórico e os usuários continuam no RDS.
@@ -210,23 +214,24 @@ Como o histórico fica no RDS, **isso não precisa ser repetido em B**.
 ### 6.3 Piloto (calibra a duração dos passos)
 
 ```bash
-DURACAO=3m PASSOS="1" AQUECIMENTO=30s SENHA=<seed_password> ./rodar_cenario.sh PILOTO 1 http://<IP-DA-EC2-A>
+export SENHA=<seed_password>
+PASSOS="1" ./rodar_cenario.sh PILOTO 1 http://<IP-DA-EC2-A>   # 16 perguntas; anote quanto tempo levou
 ```
 
-Veja o número de respostas (`count` de `latencia_chat`). Se for **menor que 20**, os percentis
-com 1 usuário não são confiáveis: use `DURACAO=5m` em todas as repetições, de A **e** de B.
+O piloto mede o **S**. Todos os passos usam o mesmo `n` = 16 (o `PASSOS` aceita só valores que dividam 16: 1,
+2, 4, 8, 16). Com `n` fixo, o tempo de cada passo é previsível (`n ÷ vazão`) e A e B são comparados com a mesma
+precisão. Uma repetição tem só 16 respostas por passo; por isso a análise **junta as 3 repetições** (48 por
+passo, linha `rep = 0` do `analisar.py`) e é essa linha que se usa para p95 e p99.
 
 **Previsão antes de medir.** Anote a mediana da latência com 1 usuário: esse é o **S**, o tempo
 de uma resposta com o servidor livre. A partir de S, e do que você sabe sobre a CPU, o
 `OLLAMA_NUM_PARALLEL` e o número de instâncias, **monte o seu próprio modelo** para prever a latência
-com 2, 4, 8 e 16 usuários em A e em B. Preencha a tabela **antes** das repetições e guarde-a para o relatório:
+com 1, 4 e 16 usuários em A e em B. Preencha a tabela **antes** das repetições e guarde-a para o relatório:
 
 | Usuários | Previsão A (1 EC2) | Previsão B (2 EC2) |
 |---|---|---|
 | 1 | | |
-| 2 | | |
 | 4 | | |
-| 8 | | |
 | 16 | | |
 
 Justifique o modelo em 3 a 5 linhas. Escolha também um **critério de aceitável** (por exemplo,
@@ -239,10 +244,11 @@ saturou), não um defeito do teste.
 
 Para cada repetição `R` = 1, 2, 3:
 
-1. Em outro terminal, iniciar a coleta de CPU por SSH na EC2 (seção 4.3): `vmstat -t 5 | tee cpu_A_rR.txt`.
-2. No gerador:
+1. Em outro terminal, iniciar a coleta de CPU por SSH na EC2 (seção 4.3): `vmstat -t 5 | tee cpu_A_r1.txt` (troque `r1` pelo número da repetição).
+2. No gerador, dentro do `tmux` (seção 3.2 do QUICKSTART):
    ```bash
-   SENHA=<seed_password> ./rodar_cenario.sh A R http://<IP-DA-EC2-A>
+   export SENHA=<seed_password>   # uma vez por terminal
+   ./rodar_cenario.sh A 1 http://<IP-DA-EC2-A>
    ```
 3. Interromper o `vmstat` (Ctrl+C).
 4. Anotar no diário de bordo: horário de início e fim, qualquer erro ou anomalia.
@@ -252,13 +258,14 @@ Ao final: `terraform destroy -var-file=a.tfvars` (somente em `compute`!).
 ### 6.5 Cenário B — 3 repetições (sessão 2)
 
 1. `terraform apply -var-file=b.tfvars` e esperar os dois alvos `healthy`
-   (EC2 → Target Groups → `nuvem-tg` → Targets).
+   (EC2 → Target Groups → `<prefixo>-tg` → Targets).
 2. **Verificar o balanceamento:** faça algumas perguntas pela página. O campo
    `servidor:` deve alternar entre as duas instâncias.
 3. Para cada repetição `R` = 1, 2, 3: igual ao cenário A, mas com **um terminal `vmstat` por
    instância** e a URL do ALB:
    ```bash
-   SENHA=<seed_password> ./rodar_cenario.sh B R http://<DNS-DO-ALB>
+   export SENHA=<seed_password>   # uma vez por terminal
+   ./rodar_cenario.sh B 1 http://<DNS-DO-ALB>
    ```
 4. Depois da última repetição, conferir no RDS como o ALB dividiu o trabalho (SSH numa das EC2):
    ```sql
@@ -346,7 +353,8 @@ O script imprime e grava `resultados/tabela.csv`, com uma linha por cenário × 
 4. **Resultados**: tabela e os 4 gráficos da seção 8; prints do CloudWatch; resultado do teste de falha.
 5. **Discussão**:
    - Qual arquitetura teve menor p95? Em quais passos a diferença é real (sem sobreposição)?
-   - Qual foi mais consistente (CV)?
+   - Qual foi mais consistente (CV)? Compare no mesmo número de usuários. Com 1 usuário não há fila:
+     de onde vem a variação que sobra? Alguma arquitetura consegue eliminá-la?
    - Onde ficou o joelho de cada uma? Por que naquele ponto?
    - Qual parte da latência cresceu com a carga (fila, prefill ou geração)?
    - O RDS foi gargalo? Como você sabe?
@@ -370,5 +378,3 @@ O script imprime e grava `resultados/tabela.csv`, com uma linha por cenário × 
   perguntas sempre diferentes.
 - **Escala pequena:** 16 usuários e 2 instâncias. As conclusões sobre a tendência valem; os números
   absolutos não se transferem para outros tamanhos.
-
----

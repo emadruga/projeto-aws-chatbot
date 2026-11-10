@@ -24,7 +24,7 @@ data "aws_subnets" "default" {
 # "app": não abre porta nenhuma. Serve de "crachá": toda EC2 da camada compute recebe
 # este SG, e o banco aceita conexões de quem tem o crachá.
 resource "aws_security_group" "app" {
-  name_prefix = "nuvem-app-"
+  name_prefix = "${local.prefixo}-app-"
   description = "Cracha das EC2 do chatbot"
   vpc_id      = data.aws_vpc.default.id
 }
@@ -36,7 +36,7 @@ resource "aws_vpc_security_group_egress_rule" "app_out" {
 }
 
 resource "aws_security_group" "db" {
-  name_prefix = "nuvem-db-"
+  name_prefix = "${local.prefixo}-db-"
   description = "Postgres acessivel so pelas EC2 do chatbot"
   vpc_id      = data.aws_vpc.default.id
 }
@@ -56,12 +56,12 @@ resource "random_password" "db" {
 }
 
 resource "aws_db_subnet_group" "default" {
-  name_prefix = "nuvem-db-"
+  name_prefix = "${local.prefixo}-db-"
   subnet_ids  = data.aws_subnets.default.ids
 }
 
 resource "aws_db_instance" "chat" {
-  identifier_prefix      = "nuvem-db-"
+  identifier_prefix      = "${local.prefixo}-db-"
   engine                 = "postgres"
   engine_version         = "16"
   instance_class         = var.db_instance_class
@@ -92,7 +92,7 @@ resource "random_id" "kb" {
 resource "terraform_data" "knowledge" {
   # Valores guardados aqui ficam disponíveis no destroy (via self.input)
   input = {
-    bucket = "nuvem-kb-${random_id.kb.hex}"
+    bucket = "${local.prefixo}-kb-${random_id.kb.hex}"
     key    = "conhecimento/plano_pedagogico.txt"
     file   = var.knowledge_file
   }

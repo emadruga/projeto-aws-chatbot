@@ -2,7 +2,7 @@
 
 resource "aws_security_group" "alb" {
   count       = var.use_alb ? 1 : 0
-  name_prefix = "nuvem-alb-"
+  name_prefix = "${local.prefixo}-alb-"
   description = "ALB do chatbot"
   vpc_id      = data.aws_vpc.default.id
 }
@@ -25,7 +25,7 @@ resource "aws_vpc_security_group_egress_rule" "alb_out" {
 
 resource "aws_lb" "app" {
   count              = var.use_alb ? 1 : 0
-  name               = "nuvem-alb"
+  name               = "${local.prefixo}-alb"
   load_balancer_type = "application"
   subnets            = local.subnet_ids
   security_groups    = [aws_security_group.alb[0].id]
@@ -34,7 +34,7 @@ resource "aws_lb" "app" {
 
 resource "aws_lb_target_group" "app" {
   count    = var.use_alb ? 1 : 0
-  name     = "nuvem-tg"
+  name     = "${local.prefixo}-tg"
   port     = 80
   protocol = "HTTP"
   vpc_id   = data.aws_vpc.default.id

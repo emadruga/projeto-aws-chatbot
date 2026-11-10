@@ -1,7 +1,11 @@
 variable "instance_count" {
-  description = "Quantas EC2 rodam o chatbot (1 = Arch A, 2 = Arch B)"
+  description = "Quantas EC2 rodam o chatbot (1 = Arch A; 2 ou mais, atrás do ALB = Arch B). As EC2 se alternam entre us-east-1a e us-east-1b."
   type        = number
   default     = 1
+  validation {
+    condition     = var.instance_count >= 1 && var.instance_count <= 15
+    error_message = "Use de 1 a 15 instâncias (o Learner Lab permite 32 vCPU ao mesmo tempo; cada large tem 2 vCPU e o gerador de carga usa mais 2)."
+  }
 }
 
 variable "use_alb" {
@@ -11,9 +15,13 @@ variable "use_alb" {
 }
 
 variable "instance_type" {
-  description = "Tipo da EC2. Use o MESMO em todos os cenários. Learner Lab: até 'large'."
+  description = "Tipo de TODAS as EC2 (A e B). Use o MESMO em todos os cenários que for comparar. Learner Lab: de nano até large. Precisa de ~8 GB de RAM (m5.large); com menos, o Ollama pode ficar sem memória."
   type        = string
   default     = "m5.large" # 2 vCPU, 8 GB, desempenho fixo (sem créditos de CPU)
+  validation {
+    condition     = can(regex("^[a-z0-9]+\\.(nano|micro|small|medium|large)$", var.instance_type))
+    error_message = "No Learner Lab o EC2 só aceita tamanhos nano, micro, small, medium e large (ex.: m5.large)."
+  }
 }
 
 variable "ssh_cidr" {
