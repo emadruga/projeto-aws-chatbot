@@ -120,7 +120,7 @@ const rows = [
   ["Guias (docs/)", "Montar os gráficos, interpretar e concluir"],
   ["", "Destruir todos os recursos no fim"],
 ];
-s.addTable(rows, { x: 0.5, y: 1.3, w: 9.0, colW: [4.5, 4.5], fontSize: 14, color: C.text1, border: { type: "solid", color: HEX.line, pt: 0.75 }, rowH: 0.48, valign: "middle", margin: [0, 8, 0, 8], objectName: "tabela-pronto" });
+s.addTable(rows, { x: 0.5, y: 1.3, w: 9.0, colW: [4.5, 4.5], fontSize: 14, color: C.text1, border: { type: "solid", color: HEX.line, pt: 0.75 }, rowH: 0.48, valign: "middle", margin: [0, 0.08, 0, 0.08], objectName: "tabela-pronto" });
 s.addNotes("O código está pronto e validado. O trabalho do aluno é o de um arquiteto de nuvem: provisionar, medir, interpretar e decidir.");
 
 // ---------- 6. Roteiro ----------
@@ -167,17 +167,17 @@ stepSlide("Atividades", "Etapa 0 — Preparação", [
 s = add("Atividades", "Etapa 0 — Instalação por sistema");
 {
   const HD = (t) => ({ text: t, options: { bold: true, color: C.background1, fill: { color: C.text1 } } });
-  const K = (t) => ({ text: t, options: { fontFace: "Courier New", fontSize: 9 } });
+  const K = (t) => ({ text: t, options: { fontFace: "Courier New", fontSize: 8 } });
   const inst = [
     [HD("Ferramenta"), HD("Linux (Ubuntu/Debian)"), HD("Windows 11 (PowerShell)"), HD("macOS (Homebrew)")],
     ["Terraform", K("sudo snap install terraform --classic"), K("winget install --id Hashicorp.Terraform -e"), K("brew install hashicorp/tap/terraform")],
     ["AWS CLI v2", K("sudo snap install aws-cli --classic"), K("winget install --id Amazon.AWSCLI -e"), K("brew install awscli")],
     ["Python 3", K("sudo apt install -y python3"), K("winget install --id Python.Python.3.12 -e"), K("brew install python")],
-    ["openpyxl", K("sudo apt install -y python3-openpyxl"), K("python -m pip install openpyxl"), K("python3 -m pip install --user --break-system-packages openpyxl")],
+    ["openpyxl", K("sudo apt install -y python3-openpyxl"), K("python -m pip install openpyxl"), K("python3 -m pip install --user\n  --break-system-packages openpyxl")],
     ["SSH", K("sudo apt install -y openssh-client"), "já vem no Windows 11", "já vem no macOS"],
     ["Git", K("sudo apt install -y git"), K("winget install --id Git.Git -e"), K("brew install git")],
   ];
-  s.addTable(inst, { x: 0.5, y: 1.2, w: 9.0, colW: [1.2, 2.5, 2.6, 2.7], fontSize: 11, color: C.text1, border: { type: "solid", color: HEX.line, pt: 0.75 }, rowH: 0.44, valign: "middle", margin: [0, 5, 0, 5], objectName: "tabela-instalacao" });
+  s.addTable(inst, { x: 0.3, y: 1.2, w: 9.4, colW: [0.85, 2.65, 3.05, 2.85], fontSize: 11, color: C.text1, border: { type: "solid", color: HEX.line, pt: 0.75 }, rowH: 0.44, valign: "middle", margin: [0, 0.05, 0, 0.05], objectName: "tabela-instalacao" });
   T(s, "Linux e macOS bloqueiam o pip puro (externally-managed-environment): por isso os comandos acima. No Windows, feche e reabra o PowerShell depois de instalar.", { x: 0.5, y: 4.45, w: 9.0, h: 0.6, fontSize: 12, color: C.text2, italic: true });
   s.addNotes("Conferir tudo com a tabela da Etapa 0.10 do ESCOPO: terraform version, aws --version, python3 --version, import openpyxl, ssh -V, git --version.");
 }
@@ -208,7 +208,7 @@ s = add("Atividades", "O gerador de carga");
     ["Security group", "<prefixo>-gerador-sg (SSH do My IP)"],
     ["Disco", "8 GiB gp3 (o padrão)"],
   ];
-  s.addTable(ger, { x: 0.5, y: 1.2, w: 4.6, colW: [1.4, 3.2], fontSize: 11, color: C.text1, border: { type: "solid", color: HEX.line, pt: 0.75 }, rowH: 0.42, valign: "middle", margin: [0, 6, 0, 6], objectName: "tabela-gerador" });
+  s.addTable(ger, { x: 0.5, y: 1.2, w: 4.6, colW: [1.4, 3.2], fontSize: 11, color: C.text1, border: { type: "solid", color: HEX.line, pt: 0.75 }, rowH: 0.42, valign: "middle", margin: [0, 0.06, 0, 0.06], objectName: "tabela-gerador" });
   box(s, { x: 5.4, y: 1.2, w: 4.1, h: 3.4, fill: { color: C.text1 }, line: { color: HEX.ink } });
   T(s, "No gerador (ssh ec2-user@<IP>)", { x: 5.6, y: 1.32, w: 3.7, h: 0.35, fontSize: 13, bold: true, color: C.accent1 });
   T(s, "sudo dnf install -y \\\n  https://dl.k6.io/rpm/repo.rpm\nsudo dnf install -y k6 tmux\nk6 version\ntmux -V", { x: 5.6, y: 1.75, w: 3.7, h: 1.6, fontSize: 12, fontFace: "Courier New", color: C.background1 });
@@ -254,7 +254,7 @@ T(s, "cd loadtest\npython3 analisar.py        → resultados/tabela.csv\npython3
     ["P4", "Agregado: razões A ÷ B", "quantas vezes B é melhor que A"],
     ["P5", "Agregado: p95 mín. e máx.", "A e B se sobrepõem? Só sem sobreposição há diferença"],
   ];
-  s.addTable(partes, { x: 0.5, y: 2.2, w: 9.0, colW: [0.8, 3.0, 5.2], fontSize: 13, color: C.text1, border: { type: "solid", color: HEX.line, pt: 0.75 }, rowH: 0.42, valign: "middle", margin: [0, 6, 0, 6], objectName: "tabela-planilha" });
+  s.addTable(partes, { x: 0.5, y: 2.2, w: 9.0, colW: [0.8, 3.0, 5.2], fontSize: 13, color: C.text1, border: { type: "solid", color: HEX.line, pt: 0.75 }, rowH: 0.42, valign: "middle", margin: [0, 0.06, 0, 0.06], objectName: "tabela-planilha" });
 }
 s.addNotes("Windows: python no lugar de python3. A planilha abre no Excel ou no LibreOffice Calc. O que discutir em cada parte está na seção 4.5 do ESCOPO_E_ATIVIDADES.md.");
 
@@ -298,7 +298,7 @@ const ent = [
   ["5", "Relatório final em PDF, com a análise da planilha e os 5 gráficos", "Fim do projeto"],
   ["6", "Evidência de limpeza (print do console)", "Fim do projeto"],
 ];
-s.addTable(ent, { x: 0.5, y: 1.25, w: 9.0, colW: [0.5, 5.6, 2.9], fontSize: 13, color: C.text1, border: { type: "solid", color: HEX.line, pt: 0.75 }, rowH: 0.47, valign: "middle", margin: [0, 6, 0, 6], objectName: "tabela-entregas" });
+s.addTable(ent, { x: 0.5, y: 1.25, w: 9.0, colW: [0.5, 5.6, 2.9], fontSize: 13, color: C.text1, border: { type: "solid", color: HEX.line, pt: 0.75 }, rowH: 0.47, valign: "middle", margin: [0, 0.06, 0, 0.06], objectName: "tabela-entregas" });
 T(s, "Prazos e forma de envio: conforme o ambiente da disciplina.", { x: 0.5, y: 4.75, w: 9.0, h: 0.35, fontSize: 13, color: C.text2, italic: true });
 s.addNotes("As entregas 1 a 4 nascem durante as sessões: quem não registra na hora não consegue reconstruir depois.");
 

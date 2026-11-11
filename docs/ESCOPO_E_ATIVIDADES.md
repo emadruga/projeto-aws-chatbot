@@ -361,8 +361,11 @@ Se tudo passou, você está pronto para a Etapa 1.
 6. **Piloto** com 1 usuário: medir o **S** (tempo de uma resposta com o servidor livre).
 7. **Antes de medir:** escrever as hipóteses e preencher a tabela de previsão (abaixo).
 8. **3 repetições** de A, cada uma com `vmstat` ligado na EC2, dentro do `tmux`.
-9. Prints do CloudWatch (RDS: CPU e conexões) e cópia da pasta `resultados/` para o seu computador.
-10. `terraform destroy -var-file=a.tfvars` (**somente** em `compute`).
+9. Prints do CloudWatch (RDS: CPU e conexões) e cópia dos resultados para o seu computador (ver
+   [Coletar os resultados e os prints do CloudWatch](#coletar-os-resultados-e-os-prints-do-cloudwatch)).
+
+> **Ainda não destrua nada.** A Arquitetura A só é destruída depois das 3 repetições, dos prints e da cópia dos
+> resultados: veja [Destruir a Arquitetura A](#destruir-a-arquitetura-a), no fim desta etapa.
 
 ### Gerador de carga (passo 2)
 
@@ -453,13 +456,105 @@ pode virar gargalo. A partir do S, monte o **seu** modelo de previsão e justifi
 Escolha também um critério de "aceitável" (ex.: p95 até 60 s). A previsão é uma hipótese: no relatório você compara com
 o que mediu e explica onde errou.
 
+### Coletar os resultados e os prints do CloudWatch
+
+Faça isto ao fim das 3 repetições de cada arquitetura, **antes** do `destroy`. Vale para A (passo 9 da Etapa 1) e
+para B (passo 5 da Etapa 2).
+
+**1. Os arquivos de cada repetição.** O teste deixa arquivos em dois lugares:
+
+| Onde | O que é | Nome |
+|---|---|---|
+| Gerador de carga | CSVs do k6, um por passo (1, 4 e 16 usuários) | `~/loadtest/resultados/A_r1/vus1.csv`, ... |
+| EC2 do chatbot | Saída do `vmstat` (CPU) | `~/cpu_A_r1.txt`, ... (em B: `cpu_B_r1_ec2-1.txt`, `cpu_B_r1_ec2-2.txt`, ...) |
+
+**2. Copiar para o seu computador.** Na pasta do projeto (igual nos 3 sistemas; no Windows, no PowerShell). Use
+o IP público de cada instância, visto no console EC2 ou em `terraform output ssh`:
+```bash
+# CSVs do k6 (do gerador)
+scp -i labsuser.pem -r ec2-user@<IP-GERADOR>:~/loadtest/resultados loadtest/
+
+# vmstat da EC2 de A
+scp -i labsuser.pem "ec2-user@<IP-EC2-A>:~/cpu_A_*.txt" loadtest/resultados/
+
+# em B, das duas EC2
+scp -i labsuser.pem "ec2-user@<IP-EC2-B1>:~/cpu_B_*.txt" loadtest/resultados/
+scp -i labsuser.pem "ec2-user@<IP-EC2-B2>:~/cpu_B_*.txt" loadtest/resultados/
+```
+As aspas em `"ec2-user@...:~/cpu_A_*.txt"` são necessárias: sem elas, o seu terminal tenta expandir o `*` na sua
+máquina, e não na EC2.
+
+**3. Salvar a configuração da arquitetura.** Ainda em `terraform/compute`, antes do `destroy`:
+```bash
+terraform output configuracao > ../../loadtest/resultados/configuracao_A.txt     # em B: configuracao_B.txt
+```
+
+**4. Conferir.** Em `loadtest/resultados/` devem existir as pastas `A_r1`, `A_r2` e `A_r3` (cada uma com
+`vus1.csv`, `vus4.csv` e `vus16.csv`), os 3 arquivos `cpu_A_r*.txt` e o `configuracao_A.txt`. Em B, o mesmo com
+`B_r*`, 6 arquivos `cpu_B_r*` e o `configuracao_B.txt`. A pasta `PILOTO_r1`, do piloto, também aparece; pode
+ficar. Se faltar algo, copie de novo **agora**: depois do `destroy`,
+o `vmstat` não existe mais.
+
+**5. Prints do CloudWatch.** Você precisa do horário de início e de fim de cada repetição, anotado no diário de
+bordo. Os gráficos do CloudWatch mostram a hora local do navegador.
+
+| Serviço | Métricas | Estatística | Cenário |
+|---|---|---|---|
+| RDS (`<prefixo>-db-...`) | `CPUUtilization` | Average | A e B |
+| | `DatabaseConnections` | Maximum | A e B |
+| ALB (`<prefixo>-alb`) | `TargetResponseTime` | Average | só B |
+| | `RequestCountPerTarget` | Sum | só B |
+| | `HTTPCode_ELB_5XX_Count` | Sum | só B |
+
+Passo a passo no console:
+
+1. Console → **CloudWatch** → **Metrics** → **All metrics**.
+2. Escolha o serviço:
+   - para o RDS: **RDS** → **Per-Database Metrics**; filtre pelo seu prefixo;
+   - para o ALB: **ApplicationELB** → **Per AppELB Metrics** (`TargetResponseTime`, `HTTPCode_ELB_5XX_Count`) e
+     **Per AppELB, per TG Metrics** (`RequestCountPerTarget`); filtre por `<prefixo>-alb`.
+3. Marque a métrica. Na aba **Graphed metrics**, ajuste **Statistic** (tabela acima) e **Period** = **1 minute**.
+4. No topo, clique em **Custom** → **Absolute** e informe o início e o fim da repetição.
+5. Salve a imagem do gráfico com a captura de tela do seu sistema:
+
+   | Sistema | Captura de uma área da tela |
+   |---|---|
+   | Linux (Ubuntu) | `Shift+Print Screen` |
+   | Windows 11 | `Win+Shift+S` |
+   | macOS | `Cmd+Shift+4` |
+
+   Inclua no print o nome da métrica, o recurso e o eixo de tempo.
+6. Salve com nomes que digam o que é, numa pasta `prints/` ao lado de `loadtest/resultados/`. Exemplos:
+   `A_r2_rds_cpu.png`, `B_r1_alb_tempo.png`.
+
+Basta um print por métrica de **uma** repetição representativa de cada arquitetura (a mesma que você usar no gráfico
+de CPU do `vmstat`). O uso de cada print no relatório está na seção 4.5, parte 4.7.
+
+> **Atalho para o RDS:** console → **RDS** → **Databases** → o seu banco → aba **Monitoring** mostra `CPUUtilization` e
+> `DatabaseConnections` prontos. O período lá é menos ajustável; prefira o CloudWatch se o gráfico ficar grosseiro.
+
+### Destruir a Arquitetura A
+
+Faça isto **somente depois** de concluir os passos 8 e 9: as **3 repetições** do teste de carga de A e a
+[coleta dos resultados e dos prints](#coletar-os-resultados-e-os-prints-do-cloudwatch). O `destroy` apaga a EC2
+do chatbot, e com ela o `vmstat` e qualquer dado que ainda não foi copiado; se faltar uma repetição, será preciso
+subir A de novo.
+
+Dentro da pasta `terraform/compute`:
+```bash
+terraform destroy -var-file=a.tfvars
+```
+**Somente** em `compute`. Não rode `destroy` em `base` (o banco, o histórico e o bucket são usados por B) e não
+encerre o gerador de carga: os dois continuam para a Etapa 2.
+
 ### Etapa 2 — Sessão 2: Arquitetura B
 
 1. Renovar as credenciais; religar o gerador (a base e o histórico continuam lá).
 2. `terraform apply -var-file=b.tfvars`; esperar os dois alvos `healthy` no Target Group `<prefixo>-tg`.
 3. Verificar o balanceamento: o campo `servidor:` deve alternar entre as duas EC2.
 4. **3 repetições** de B com **exatamente o mesmo protocolo** de A, com um `vmstat` por EC2.
-5. Prints do CloudWatch (ALB e RDS) e cópia dos resultados.
+5. Prints do CloudWatch (ALB e RDS) e cópia dos resultados, como em
+   [Coletar os resultados e os prints do CloudWatch](#coletar-os-resultados-e-os-prints-do-cloudwatch).
 6. Opcional: teste de falha (parar uma EC2 durante a carga).
 7. `terraform destroy -var-file=b.tfvars`.
 
