@@ -3,9 +3,10 @@
 # Todo recurso criado (EC2, ALB, banco, bucket, security groups) começa com este prefixo.
 # Assim, no console e na cobrança, cada aluno reconhece o que é seu.
 #
-# De onde vem o nome: do "aws sts get-caller-identity". No Learner Lab o ARN termina assim:
-#   .../voclabs/user1234567=_Student_View__Maria_Silva
-# Pegamos o que vem depois de "__" ("Maria_Silva") e montamos "maria-silva"
+# De onde vem o nome: do "aws sts get-caller-identity". No Learner Lab o ARN termina de um destes jeitos:
+#   .../voclabs/user1234567=Maria_Silva
+#   .../voclabs/user1234567=_Student_View__Maria_Silva     (professor usando a visão de aluno)
+# Pegamos o que vem depois de "=", tiramos o "_Student_View__" se houver ("Maria_Silva") e montamos "maria-silva"
 # (primeiro e último nome, minúsculas, sem acento, só letras, números e hífen).
 # Se o nome ficar grande demais (ALB e target group aceitam 32 caracteres), usamos só o primeiro nome.
 # Se o ARN não tiver esse formato, o prefixo vira "aluno".
@@ -15,12 +16,12 @@
 data "aws_caller_identity" "atual" {}
 
 locals {
-  # última parte do ARN: "user1234567=_Student_View__Maria_Silva"
+  # última parte do ARN: "user1234567=Maria_Silva" ou "user1234567=_Student_View__Maria_Silva"
   arn_partes = split("/", data.aws_caller_identity.atual.arn)
   sessao     = local.arn_partes[length(local.arn_partes) - 1]
 
-  # "Maria_Silva" -> minúsculas, sem acento, sem símbolos
-  nome_bruto = lower(try(regex("__(.+)$", local.sessao)[0], ""))
+  # o que vem depois de "=", sem o "_Student_View__" -> "maria_silva" (minúsculas)
+  nome_bruto = replace(lower(try(regex("=(.+)$", local.sessao)[0], "")), "/^_*student_view_*/", "")
   nome_limpo = replace(
     replace(
       replace(
