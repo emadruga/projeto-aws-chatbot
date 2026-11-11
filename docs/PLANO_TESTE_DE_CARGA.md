@@ -8,6 +8,7 @@ arquiteturas do Projeto Nuvem 2026. Os scripts estão em `loadtest/`:
 | `loadtest/carga.js` | Script k6: cada usuário virtual faz login e envia perguntas ao chatbot |
 | `loadtest/rodar_cenario.sh` | Roda a rampa completa (1 → 16 usuários) e salva um CSV por passo |
 | `loadtest/analisar.py` | Lê todos os CSVs e gera a tabela comparativa (`resultados/tabela.csv`) |
+| `loadtest/gerar_planilha.py` | Lê o `tabela.csv` e gera a planilha Excel com os gráficos (`resultados/resultados.xlsx`) |
 
 ---
 
@@ -79,22 +80,27 @@ até a Virgínia (us-east-1) e as oscilações do Wi-Fi entrariam nos dados.
 **Criação (uma vez, pelo console):** EC2 → *Launch instance*:
 
 - Nome: `<prefixo>-gerador-carga` (prefixo = seu nome, ex.: `maria-silva`)
-- AMI: Amazon Linux 2023
+- AMI: Amazon Linux 2023 (64 bits, x86)
 - Tipo: `t3.small` (o k6 é leve; 16 usuários não chegam perto do limite)
 - Key pair: `vockey`
 - Rede: VPC default, subnet em `us-east-1a`, IP público habilitado
-- Security group: novo, com **SSH apenas do "My IP"**
+- Security group: novo, `<prefixo>-gerador-sg`, com **SSH apenas do "My IP"**
+- Disco: 8 GiB gp3 (o padrão)
 
-**Instalação do k6 e cópia dos scripts:**
+O passo a passo de cada campo está no [`ESCOPO_E_ATIVIDADES.md`](ESCOPO_E_ATIVIDADES.md#gerador-de-carga-passo-2),
+seção "Gerador de carga".
+
+**Instalação do k6 e do tmux e cópia dos scripts:**
 
 ```bash
 # no computador do aluno
 scp -i labsuser.pem -r loadtest ec2-user@<IP-DO-GERADOR>:~/
 
-# no gerador (ssh -i labsuser.pem ec2-user@<IP-DO-GERADOR>)
+# no gerador (ssh -o ServerAliveInterval=30 -i labsuser.pem ec2-user@<IP-DO-GERADOR>)
 sudo dnf install -y https://dl.k6.io/rpm/repo.rpm
-sudo dnf install -y k6
+sudo dnf install -y k6 tmux
 k6 version
+tmux -V
 ```
 
 > O gerador para quando a sessão do Learner Lab termina e volta com **outro IP público** ao
@@ -315,30 +321,44 @@ Registre toda repetição descartada e o motivo no relatório.
 
 ## 8. Análise
 
-No computador do aluno, com a pasta `resultados/` copiada para dentro de `loadtest/`:
+No computador do aluno, com a pasta `resultados/` copiada para dentro de `loadtest/` e o `openpyxl` instalado
+(ESCOPO, Etapa 0.3):
 
 ```bash
 cd loadtest
-python3 analisar.py
+python3 analisar.py          # Windows: python analisar.py        -> resultados/tabela.csv
+python3 gerar_planilha.py    # Windows: python gerar_planilha.py  -> resultados/resultados.xlsx
 ```
 
-O script imprime e grava `resultados/tabela.csv`, com uma linha por cenário × repetição × passo:
+O `analisar.py` imprime e grava `resultados/tabela.csv`, com uma linha por cenário × repetição × passo:
 `n`, `p50_s`, `p95_s`, `p99_s`, `media_s`, `desvio_s`, `cv`, `req_por_min`, `erros_pct`,
-`fila_med_s`, `prefill_med_s`, `geracao_med_s`. Não precisa instalar nada além do Python.
+`fila_med_s`, `prefill_med_s`, `geracao_med_s`. A linha `rep = 0` junta as 3 repetições (n = 48 por passo).
 
-**Gráficos obrigatórios** (Excel ou Google Sheets, a partir de `tabela.csv`):
+O `gerar_planilha.py` lê esse CSV e monta a planilha `resultados.xlsx` (abra no Excel ou no LibreOffice Calc):
 
-1. **p95 × número de usuários**, uma linha por cenário (A e B). Use a média das 3 repetições
-   e mostre o mínimo e o máximo como barra de erro. É o gráfico central do projeto.
-2. **Vazão (`req_por_min`) × número de usuários**, uma linha por cenário.
-3. **Decomposição da latência** (barras empilhadas: fila, prefill, geração) para A e B com 1, 4 e 16 usuários.
-4. **CPU ao longo do tempo** (a partir do `vmstat`) numa repetição de A e uma de B.
+| Parte | Onde | O que mostra |
+|---|---|---|
+| P1 | abas `A_rep1` … `B_rep3` | Os passos de cada repetição |
+| P2 | aba `Agregado`, tabelas "Cenário A" e "Cenário B" | As 3 repetições juntas, com todas as métricas e a decomposição |
+| P3 | aba `Agregado`, gráficos | **p50**, **p95** e **vazão** × usuários, A e B |
+| P4 | aba `Agregado`, razões "A ÷ B" | Quantas vezes B é melhor que A em p50, p95, desvio e vazão |
+| P5 | aba `Agregado`, "p95 por repetição: mínimo e máximo" | A faixa do p95 entre as repetições, para ver se A e B se sobrepõem |
+
+**Gráficos do relatório (5):**
+
+1. **p50 × número de usuários**: pronto na planilha (P3).
+2. **p95 × número de usuários**: pronto na planilha (P3). É o gráfico central do projeto.
+3. **Vazão (`req_por_min`) × número de usuários**: pronto na planilha (P3).
+4. **Decomposição da latência** (barras empilhadas: fila, prefill, geração) para A e B com 1, 4 e 16 usuários:
+   montado por você, a partir de P2.
+5. **CPU ao longo do tempo** (a partir do `vmstat`) numa repetição de A e uma de B: montado por você.
 
 **Como ler:**
 
 - O ponto onde a curva de p95 "dobra para cima" é o **joelho**: a carga a partir da qual o sistema
   começa a enfileirar. Compare o joelho de A com o de B.
-- Se as barras de erro de A e B se sobrepõem num passo, **não há diferença comprovada** naquele passo.
+- Se as faixas de p95 mínimo–máximo de A e B (P5) se sobrepõem num passo, **não há diferença comprovada**
+  naquele passo.
 - Se a vazão para de crescer enquanto a latência sobe, o sistema saturou: mais usuários só
   aumentam a fila.
 
@@ -346,16 +366,23 @@ O script imprime e grava `resultados/tabela.csv`, com uma linha por cenário × 
 
 ## 9. Estrutura do relatório
 
-1. **Objetivo e hipóteses** (seção 1), escritas antes de medir.
+O relatório final é **um PDF**. A estrutura completa, as imagens de cada parte e as perguntas de discussão de cada
+parte da planilha estão na [seção 4.5 do `ESCOPO_E_ATIVIDADES.md`](ESCOPO_E_ATIVIDADES.md#45-estrutura-do-relatório-final).
+Em resumo:
+
+1. **Objetivo e hipóteses** (seção 1), escritas antes de medir, com o **S** do piloto e a tabela de previsão.
 2. **Arquiteturas testadas**: diagrama de A e B, recursos criados, custo por hora de cada uma
    (EC2, ALB, RDS) segundo a calculadora da AWS.
-3. **Método**: o que foi fixado (seção 2), a rampa, o número de repetições, a duração final dos passos.
-4. **Resultados**: tabela e os 4 gráficos da seção 8; prints do CloudWatch; resultado do teste de falha.
-5. **Discussão**:
-   - Qual arquitetura teve menor p95? Em quais passos a diferença é real (sem sobreposição)?
+3. **Método**: o que foi fixado (seção 2), a rampa, o número de repetições, a duração real das repetições.
+4. **Resultados**, na ordem da planilha: tabelas agregadas (P2), gráficos de p50, p95 e vazão (P3), razões
+   A ÷ B (P4), p95 mínimo e máximo (P5), variação entre repetições (P1), gráficos de decomposição e CPU,
+   prints do CloudWatch e, se feito, o teste de falha.
+5. **Discussão**, parte a parte da planilha:
+   - Qual arquitetura teve menor p95? Em quais passos a diferença é real (faixas de P5 sem sobreposição)?
    - Qual foi mais consistente (CV)? Compare no mesmo número de usuários. Com 1 usuário não há fila:
      de onde vem a variação que sobra? Alguma arquitetura consegue eliminá-la?
    - Onde ficou o joelho de cada uma? Por que naquele ponto?
+   - Quantas vezes B foi melhor que A (P4)? Por que não exatamente 2× com 2 EC2?
    - Qual parte da latência cresceu com a carga (fila, prefill ou geração)?
    - O RDS foi gargalo? Como você sabe?
    - A sua previsão da seção 6.3 acertou? Onde errou, e por quê?

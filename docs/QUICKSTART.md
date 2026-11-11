@@ -2,8 +2,10 @@
 
 Roteiro direto, do zero até a análise final de A e B. Os detalhes e as justificativas estão em:
 
-- `docs/ARCH_A_vs_ARCH_B.md`: como a infraestrutura é montada;
-- `docs/PLANO_TESTE_DE_CARGA.md`: como e por que o teste é feito assim.
+- [`ESCOPO_E_ATIVIDADES.md`](ESCOPO_E_ATIVIDADES.md): etapas, instalação passo a passo por sistema (Etapa 0),
+  gerador de carga e estrutura do relatório final (seção 4.5);
+- [`ARCH_A_vs_ARCH_B.md`](ARCH_A_vs_ARCH_B.md): como a infraestrutura é montada;
+- [`PLANO_TESTE_DE_CARGA.md`](PLANO_TESTE_DE_CARGA.md): como e por que o teste é feito assim.
 
 Convenções deste guia:
 
@@ -19,61 +21,36 @@ Convenções deste guia:
 |---|---|---|
 | **Terraform** | ≥ 1.5 | Criar e destruir a infraestrutura |
 | **AWS CLI** | v2 | Credenciais do Learner Lab e consultas à AWS |
+| **Python** + `openpyxl` | ≥ 3.8 | Rodar `analisar.py` (só a biblioteca padrão) e `gerar_planilha.py` (precisa do `openpyxl`) |
 | **Cliente SSH** (`ssh`, `scp`) | OpenSSH | Entrar nas EC2 e copiar arquivos |
-| **Python** | ≥ 3.8 | Rodar `analisar.py` (só a biblioteca padrão) |
+| **Git** | 2.x | Baixar o projeto |
 | Navegador | qualquer | Console da AWS e página do chatbot |
 
-O **k6** (ferramenta de teste de carga) **não** precisa ser instalado no seu computador: ele roda
-no gerador de carga (passo 3).
+O **k6** e o **tmux** **não** são instalados no seu computador: eles vão no gerador de carga (passo 3.2).
 
-### macOS
+Resumo da instalação. O passo a passo de cada item, com os erros mais comuns, está na **Etapa 0** do
+[`ESCOPO_E_ATIVIDADES.md`](ESCOPO_E_ATIVIDADES.md#etapa-0--preparação).
 
-```bash
-# Homebrew (se ainda não tiver): https://brew.sh
-brew tap hashicorp/tap
-brew install hashicorp/tap/terraform awscli python
-# ssh e scp já vêm no macOS
-```
+| Ferramenta | Linux (Ubuntu/Debian) | Windows 11 (PowerShell) | macOS ([Homebrew](https://brew.sh)) |
+|---|---|---|---|
+| Terraform | `sudo snap install terraform --classic` | `winget install --id Hashicorp.Terraform -e` | `brew install hashicorp/tap/terraform` |
+| AWS CLI | `sudo snap install aws-cli --classic` | `winget install --id Amazon.AWSCLI -e` | `brew install awscli` |
+| Python | `sudo apt install -y python3` | `winget install --id Python.Python.3.12 -e` | `brew install python` |
+| `openpyxl` | `sudo apt install -y python3-openpyxl` | `python -m pip install openpyxl` | `python3 -m pip install --user --break-system-packages openpyxl` |
+| SSH | `sudo apt install -y openssh-client` | já vem no Windows 11 | já vem no macOS |
+| Git | `sudo apt install -y git` | `winget install --id Git.Git -e` | `brew install git` |
 
-### Linux (Ubuntu/Debian)
+No Windows, feche e reabra o PowerShell depois de instalar.
 
-```bash
-# Terraform (repositório oficial da HashiCorp)
-sudo apt-get update && sudo apt-get install -y gnupg curl unzip
-curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
-echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
-  | sudo tee /etc/apt/sources.list.d/hashicorp.list
-sudo apt-get update && sudo apt-get install -y terraform
-
-# AWS CLI v2 (para ARM, troque x86_64 por aarch64)
-curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
-unzip -q awscliv2.zip && sudo ./aws/install
-
-# Python e SSH
-sudo apt-get install -y python3 openssh-client
-```
-
-Em Fedora/RHEL, troque `apt-get` por `dnf` e siga as instruções da HashiCorp para o repositório RPM.
-
-### Windows 10/11 (PowerShell)
-
-```powershell
-winget install --id Hashicorp.Terraform -e
-winget install --id Amazon.AWSCLI -e
-winget install --id Python.Python.3.12 -e
-# O cliente OpenSSH já vem no Windows 10/11. Se "ssh" não for reconhecido:
-# Configurações → Sistema → Recursos opcionais → Adicionar "Cliente OpenSSH"
-```
-
-Feche e reabra o PowerShell depois de instalar.
-
-### Conferir a instalação (todos os sistemas)
+### Conferir a instalação
 
 ```bash
 terraform version
 aws --version
+python3 --version                                      # Windows: python --version
+python3 -c "import openpyxl; print(openpyxl.__version__)"   # Windows: python -c ...
 ssh -V
-python3 --version     # Windows: python --version
+git --version
 ```
 
 ---
@@ -82,7 +59,12 @@ python3 --version     # Windows: python --version
 
 ### 2.1 Obter o projeto
 
-Copie a pasta `projeto_nuvem_2026/` para o seu computador (pelo material da disciplina ou `git clone`).
+```bash
+git clone https://github.com/emadruga/projeto-aws-chatbot.git
+cd projeto-aws-chatbot
+```
+
+Sem Git: baixe a pasta pelo material da disciplina e descompacte.
 
 > **Windows + git:** o projeto tem um `.gitattributes` que mantém os scripts com fim de linha
 > no formato do Linux. Se mesmo assim aparecer o erro `bad interpreter` ou `$'\r': command not found`
@@ -93,7 +75,8 @@ Copie a pasta `projeto_nuvem_2026/` para o seu computador (pelo material da disc
 1. AWS Academy → **Learner Lab** → **Start Lab** → espere o indicador ficar verde.
 2. **AWS Details → AWS CLI → Show**: copie o bloco inteiro para o arquivo de credenciais:
    - macOS/Linux: `~/.aws/credentials`
-   - Windows: `C:\Users\<você>\.aws\credentials`
+   - Windows: `C:\Users\<você>\.aws\credentials` (o arquivo **não** tem extensão: cuidado com o Bloco de Notas,
+     que salva como `credentials.txt`; veja a Etapa 0.7 do ESCOPO)
    ```ini
    [default]
    aws_access_key_id=...
@@ -101,7 +84,8 @@ Copie a pasta `projeto_nuvem_2026/` para o seu computador (pelo material da disc
    aws_session_token=...
    ```
 3. Configure a região (uma vez): `aws configure set region us-east-1`
-4. 💻 Teste: `aws sts get-caller-identity` deve mostrar uma conta, sem erro.
+4. 💻 Teste: `aws sts get-caller-identity` deve mostrar `Account` e um `Arn` com `voclabs` e o **seu nome** no fim
+   (ex.: `.../voclabs/user1234567=Maria_Silva`), sem erro. Os erros comuns e o que fazer estão na Etapa 0.10 do ESCOPO.
 
 > As credenciais **expiram quando a sessão termina** (4 h). A cada nova sessão, repita os itens 1, 2 e 4.
 
@@ -129,8 +113,8 @@ Copie a pasta `projeto_nuvem_2026/` para o seu computador (pelo material da disc
    `terraform apply -var-file=b.tfvars -var instance_count=4`.
 
    **Prefixo com o seu nome.** Todos os recursos (EC2, ALB, banco, bucket, security groups) levam o seu nome como
-   prefixo, lido automaticamente do `aws sts get-caller-identity`: por exemplo, `maria-silva`
-   (`maria-silva-web-1`, `maria-silva-alb`...). Se o nome for muito longo, usa só o primeiro nome. Para ver ou
+   prefixo, lido automaticamente do `Arn` do `aws sts get-caller-identity` (o que vem depois do `=`): por exemplo,
+   `user1234567=Maria_Silva` → `maria-silva` (`maria-silva-web-1`, `maria-silva-alb`...). Se o nome for muito longo, usa só o primeiro nome. Para ver ou
    trocar: `terraform output prefixo` na pasta `base`, ou `terraform apply -var prefixo=meu-nome` na `base`.
    No console, procure pelo seu nome. O gerador de carga (criado à mão) deve seguir o mesmo padrão:
    `<prefixo>-gerador-carga`.
@@ -150,35 +134,40 @@ terraform apply          # digite "yes"; leva ~10 min por causa do RDS
 
 ### 3.2 Gerador de carga, uma única vez no projeto
 
-No **console da AWS** → EC2 → **Launch instance**:
+Crie pelo **console da AWS** → EC2 → **Launch instance** (como no Módulo 4 da AWS Academy). Os detalhes de cada
+campo estão em [ESCOPO, "Gerador de carga"](ESCOPO_E_ATIVIDADES.md#gerador-de-carga-passo-2).
 
-- Nome `<prefixo>-gerador-carga` (o prefixo é o seu nome, veja a seção 2) · AMI **Amazon Linux 2023** · tipo **t3.small** · key pair **vockey**
-- Rede: VPC default, subnet em **us-east-1a**, IP público habilitado
-- Security group: novo, **SSH apenas de "My IP"**
+| Campo | Valor |
+|---|---|
+| Name | `<prefixo>-gerador-carga` (o prefixo é o seu nome, veja a seção 2.3) |
+| AMI | **Amazon Linux 2023** (64 bits, x86) |
+| Instance type | **`t3.small`** |
+| Key pair | **`vockey`** |
+| Rede | VPC default, subnet em **us-east-1a**, IP público **habilitado** |
+| Security group | novo, `<prefixo>-gerador-sg`, só **SSH (22) de "My IP"** |
+| Storage | **8 GiB gp3** (o padrão) |
 
-Quando estiver *Running*, copie o IP público e instale o k6:
+Quando estiver *Running* e com **2/2 checks passed**, copie o IP público, envie os scripts e instale k6 e tmux:
 
 ```bash
-# 💻 envia os scripts de teste para o gerador
+# 💻 envia os scripts de teste para o gerador e entra nele
 scp -i labsuser.pem -r loadtest ec2-user@<IP-GERADOR>:~/
+ssh -o ServerAliveInterval=30 -i labsuser.pem ec2-user@<IP-GERADOR>
 
-# 💻 entra no gerador
-ssh -i labsuser.pem ec2-user@<IP-GERADOR>
-
-# 🖥️ instala o k6
+# 🖥️ instala o k6 (repositório oficial da Grafana) e o tmux (repositório do Amazon Linux)
 sudo dnf install -y https://dl.k6.io/rpm/repo.rpm
-sudo dnf install -y k6
+sudo dnf install -y k6 tmux
 chmod +x ~/loadtest/rodar_cenario.sh
 
-# 🖥️ instala o tmux: o teste dura de 30 a 60 min e continua rodando se a conexão SSH cair
-sudo dnf install -y tmux
+# 🖥️ confere
+k6 version
+tmux -V
 ```
 
-> **Por que `tmux`?** Se a conexão SSH cair, um comando comum é interrompido no meio do teste. Dentro do `tmux`
-> ele continua. Use `tmux new -s teste` para abrir, `Ctrl+B` e depois `D` para sair sem parar nada e
-> `tmux attach -t teste` para voltar. Para a conexão cair menos, entre com
-> `ssh -o ServerAliveInterval=30 -i labsuser.pem ec2-user@<IP>`.
-> Instale o `tmux` também na EC2 de A (`sudo dnf install -y tmux`) se for rodar o `vmstat` nele.
+> **Por que `tmux`?** Uma repetição dura de 30 a 60 min. Se a conexão SSH cair, um comando comum é interrompido no
+> meio; dentro do `tmux` ele continua. Use `tmux new -s teste` para abrir, `Ctrl+B` e depois `D` para sair sem
+> parar nada e `tmux attach -t teste` para voltar.
+> Instale o `tmux` também nas EC2 do chatbot (`sudo dnf install -y tmux`), onde o `vmstat` roda.
 
 > **Senha dos testes:** antes de rodar, execute `export SENHA=<seed_password>` no terminal do gerador. Não use
 > `SENHA=... && ./script`: com `&&` a variável não chega ao script.
@@ -275,8 +264,10 @@ No fim do projeto, a `base` só pode ser destruída **depois** da `compute` (vej
 ### 4.1 Retomar a sessão
 
 1. **Start Lab** e copie as **novas** credenciais (passo 2.2).
-2. Confira no console o **novo IP público** do gerador (ele muda a cada sessão).
-3. Se a sua rede mudou, atualize o `ssh_cidr` nos `.tfvars`.
+2. Se o gerador estiver *Stopped*, religue-o (**Instance state → Start**) e confira no console o **novo IP
+   público** dele (ele muda a cada sessão).
+3. Se a sua rede mudou, atualize o `ssh_cidr` nos `.tfvars` e a regra **My IP** do security group
+   `<prefixo>-gerador-sg`.
 
 ### 4.2 Subir a Arquitetura B
 
@@ -317,7 +308,9 @@ k6 run -e URL=http://<DNS-DO-ALB> -e SENHA=<seed_password> -e VUS=8 -e DURACAO=6
 Aos 2 minutos, pare uma das EC2 no console (**Instance state → Stop**) e observe o Target Group.
 Detalhes na seção 6.6 do plano.
 
-### 4.5 Coleta e análise final (A + B)
+### 4.5 Coleta, planilha e relatório final (A + B)
+
+Antes de destruir B, salve os prints do CloudWatch (ALB e RDS, seção 4.4 do plano). Depois:
 
 ```bash
 # 💻
@@ -326,12 +319,17 @@ scp -i labsuser.pem "ec2-user@<IP-EC2-B1>:~/cpu_B_*.txt" loadtest/resultados/
 scp -i labsuser.pem "ec2-user@<IP-EC2-B2>:~/cpu_B_*.txt" loadtest/resultados/
 
 cd loadtest
-python3 analisar.py
+python3 analisar.py          # Windows: python analisar.py        -> resultados/tabela.csv
+python3 gerar_planilha.py    # Windows: python gerar_planilha.py  -> resultados/resultados.xlsx
 ```
 
-Agora `resultados/tabela.csv` tem A e B lado a lado. Abra no Excel ou Google Sheets e faça os
-gráficos e o relatório conforme as seções 8 e 9 do plano. Antes de destruir B, salve também os
-prints do CloudWatch (ALB e RDS, seção 4.4 do plano).
+Abra `resultados/resultados.xlsx` no Excel ou no LibreOffice Calc. A planilha tem uma aba por repetição
+(`A_rep1` … `B_rep3`) e a aba `Agregado`, com as tabelas de A e B, os gráficos de **p50**, **p95** e **vazão** ×
+usuários, as razões A ÷ B e o p95 mínimo e máximo de cada passo. Os outros dois gráficos (decomposição da latência
+e CPU do `vmstat`) você monta.
+
+O relatório final é **um PDF**, com a estrutura, as imagens e as perguntas de discussão de cada parte da planilha
+descritas na [seção 4.5 do ESCOPO](ESCOPO_E_ATIVIDADES.md#45-estrutura-do-relatório-final).
 
 ### 4.6 Limpeza (fim do projeto)
 
@@ -357,7 +355,8 @@ Antes de começar:
 - **Não apague os arquivos `terraform.tfstate`** de `base/` e `compute/`. O state é local e, sem ele, o Terraform perde o controle do que existe.
 - O RDS leva alguns minutos para ser removido. Os dados (usuários e histórico) são perdidos.
 
-E no console: EC2 → `<prefixo>-gerador-carga` → **Instance state → Terminate**.
+E no console: EC2 → `<prefixo>-gerador-carga` → **Instance state → Terminate**; depois que ele sumir, apague
+também o security group `<prefixo>-gerador-sg` (EC2 → Security Groups).
 Confira em EC2 e RDS que nada ficou rodando: recursos esquecidos consomem o crédito do lab.
 
 ---
@@ -375,8 +374,8 @@ quem tem o security group `app` (o "crachá" das EC2). Do seu computador a conex
 > rede da EC2 que está sendo medida, e o plano manda descartar a repetição se alguém intervir. Faça isto antes
 > de começar ou depois que a repetição terminar.
 
-> **Do gerador de carga não funciona.** O gerador tem o `psql`, mas o security group dele (`<prefixo>-gerador`) não é o
-> `app`, e o RDS recusa a conexão. Use sempre uma EC2 do chatbot.
+> **Do gerador de carga não funciona.** O security group dele (`<prefixo>-gerador-sg`) não é o `app`, e o RDS
+> recusa a conexão. Use sempre uma EC2 do chatbot.
 
 **1. Entre na EC2 e instale o cliente** (Amazon Linux 2023):
 
@@ -460,3 +459,7 @@ sessão por login. Na Arquitetura B, o `served_by` mostra a divisão entre as du
 | `login de alunoNN falhou: 401` no k6 | `SENHA` diferente do `seed_password` | Usar a mesma senha do `.tfvars` |
 | Erros apenas nos passos com muitos usuários | Possível saturação (timeout de 1200 s) | Investigue; pode ser um resultado (plano, seção 7) |
 | `bad interpreter` no gerador | Fim de linha do Windows | `sed -i 's/\r$//' rodar_cenario.sh` |
+| Recursos com o prefixo `aluno` em vez do seu nome | O `Arn` do `aws sts get-caller-identity` não tem o nome depois do `=` | `terraform apply -var prefixo=seu-nome` na `base` (recria o RDS) |
+| `ModuleNotFoundError: No module named 'openpyxl'` | `openpyxl` não instalado (ou instalado em outro Python) | Instalar conforme a seção 1 / Etapa 0.3 do ESCOPO |
+| `error: externally-managed-environment` no `pip` | Linux/macOS bloqueiam o `pip` no Python do sistema | Linux: `sudo apt install -y python3-openpyxl`; macOS: o comando com `--user --break-system-packages` |
+| `sem resultados agregados para ['B']` no `gerar_planilha.py` | Faltam os CSVs de B em `loadtest/resultados/` | Copiar os resultados do gerador (4.5) e rodar `analisar.py` de novo |
