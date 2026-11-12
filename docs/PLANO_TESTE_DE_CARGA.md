@@ -204,6 +204,9 @@ sessão e os religa no início da próxima. O histórico e os usuários continua
 
 ### 6.2 Preenchimento do histórico (uma única vez)
 
+> Nos comandos abaixo, `<sua-senha-do-tfvars>` é o valor de `seed_password` dos seus `.tfvars`: a senha dos
+> usuários de teste `aluno01`…`aluno20`, com a qual cada usuário virtual do k6 faz login.
+
 No começo, os alunos de teste não têm histórico, e as primeiras perguntas seriam mais rápidas
 que as seguintes. Para que todas as medições partam da mesma condição, cada um dos 16 usuários
 envia 3 perguntas antes de qualquer medição (3 pares pergunta/resposta = 6 mensagens, o limite
@@ -212,7 +215,7 @@ do histórico):
 ```bash
 # no gerador
 cd ~/loadtest
-k6 run -e URL=http://<IP-DA-EC2-A> -e SENHA=<seed_password> -e VUS=16 -e ITERACOES=3 carga.js
+k6 run -e URL=http://<IP-DA-EC2-A> -e SENHA=<sua-senha-do-tfvars> -e VUS=16 -e ITERACOES=3 carga.js
 ```
 
 Como o histórico fica no RDS, **isso não precisa ser repetido em B**.
@@ -220,7 +223,7 @@ Como o histórico fica no RDS, **isso não precisa ser repetido em B**.
 ### 6.3 Piloto (calibra a duração dos passos)
 
 ```bash
-export SENHA=<seed_password>
+export SENHA=<sua-senha-do-tfvars>
 PASSOS="1" ./rodar_cenario.sh PILOTO 1 http://<IP-DA-EC2-A>   # 16 perguntas; anote quanto tempo levou
 ```
 
@@ -253,7 +256,7 @@ Para cada repetição `R` = 1, 2, 3:
 1. Em outro terminal, iniciar a coleta de CPU por SSH na EC2 (seção 4.3): `vmstat -t 5 | tee cpu_A_r1.txt` (troque `r1` pelo número da repetição).
 2. No gerador, dentro do `tmux` (seção 3.2 do QUICKSTART):
    ```bash
-   export SENHA=<seed_password>   # uma vez por terminal
+   export SENHA=<sua-senha-do-tfvars>   # uma vez por terminal
    ./rodar_cenario.sh A 1 http://<IP-DA-EC2-A>
    ```
 3. Interromper o `vmstat` (Ctrl+C).
@@ -270,7 +273,7 @@ Ao final: `terraform destroy -var-file=a.tfvars` (somente em `compute`!).
 3. Para cada repetição `R` = 1, 2, 3: igual ao cenário A, mas com **um terminal `vmstat` por
    instância** e a URL do ALB:
    ```bash
-   export SENHA=<seed_password>   # uma vez por terminal
+   export SENHA=<sua-senha-do-tfvars>   # uma vez por terminal
    ./rodar_cenario.sh B 1 http://<DNS-DO-ALB>
    ```
 4. Depois da última repetição, conferir no RDS como o ALB dividiu o trabalho (SSH numa das EC2):
@@ -286,7 +289,7 @@ Ao final: `terraform destroy -var-file=a.tfvars` (somente em `compute`!).
 
 Mostra a diferença de **disponibilidade**, não de desempenho. Não entra na tabela de latência.
 
-1. No gerador: `k6 run -e URL=http://<DNS-DO-ALB> -e SENHA=<seed_password> -e VUS=8 -e DURACAO=6m --out csv=resultados/falha.csv carga.js`
+1. No gerador: `k6 run -e URL=http://<DNS-DO-ALB> -e SENHA=<sua-senha-do-tfvars> -e VUS=8 -e DURACAO=6m --out csv=resultados/falha.csv carga.js`
 2. Aos **2 minutos**, parar uma das EC2: console → EC2 → *Instance state* → *Stop*.
 3. Observar no console do Target Group quando a instância passa a `unhealthy`.
 4. No relatório: quantas requisições falharam, por quanto tempo, e o que aconteceria em A.

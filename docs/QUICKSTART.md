@@ -10,7 +10,8 @@ Roteiro direto, do zero até a análise final de A e B. Os detalhes e as justifi
 Convenções deste guia:
 
 - 💻 = comando no **seu computador**; 🖥️ = comando no **gerador de carga** (EC2, via SSH).
-- `<seed_password>` é a senha dos usuários de teste `aluno01`…`aluno20` (passo 2.3).
+- `<sua-senha-do-tfvars>` é a senha dos usuários de teste `aluno01`…`aluno20`: o valor de `seed_password` que você
+  escreveu nos `.tfvars` (passo 2.3). Use a mesma em `a.tfvars`, `b.tfvars` e `b1.tfvars`.
 - No Windows, use o **PowerShell**. Quando um comando muda, há uma linha específica para ele.
 
 ---
@@ -169,8 +170,11 @@ tmux -V
 > parar nada e `tmux attach -t teste` para voltar.
 > Instale o `tmux` também nas EC2 do chatbot (`sudo dnf install -y tmux`), onde o `vmstat` roda.
 
-> **Senha dos testes:** antes de rodar, execute `export SENHA=<seed_password>` no terminal do gerador. Não use
-> `SENHA=... && ./script`: com `&&` a variável não chega ao script.
+> **Senha dos testes:** antes de rodar, execute `export SENHA=<sua-senha-do-tfvars>` no terminal do gerador, com o
+> valor de `seed_password` do seu `.tfvars`. Cada usuário virtual do k6 entra como `aluno01`, `aluno02`... com essa
+> senha; se ela não bater, o teste para com `login de aluno01 falhou: 401`. O `export` vale só para aquele
+> terminal: repita-o se abrir outro ou reconectar. Não use `SENHA=... && ./script`: com `&&` a variável não chega
+> ao script.
 
 ### 3.3 Subir a Arquitetura A
 
@@ -189,7 +193,7 @@ curl -s -o /dev/null -w "%{http_code}\n" $(terraform output -raw url)
 # Windows: curl.exe -s -o NUL -w "%{http_code}`n" (terraform output -raw url)
 ```
 
-**Teste de fumaça:** abra a URL no navegador, entre como `aluno01` (senha `<seed_password>`)
+**Teste de fumaça:** abra a URL no navegador, entre como `aluno01` (senha `<sua-senha-do-tfvars>`)
 e pergunte "Quantas vagas o curso oferece?".
 
 > Demorando mais de 15 min? Entre por SSH e veja o boot: `sudo tail -f /var/log/cloud-init-output.log`
@@ -199,14 +203,14 @@ e pergunte "Quantas vagas o curso oferece?".
 ```bash
 # 🖥️ no gerador
 cd ~/loadtest
-k6 run -e URL=http://<IP-EC2-A> -e SENHA=<seed_password> -e VUS=16 -e ITERACOES=3 carga.js
+k6 run -e URL=http://<IP-EC2-A> -e SENHA=<sua-senha-do-tfvars> -e VUS=16 -e ITERACOES=3 carga.js
 ```
 
 ### 3.5 Piloto e previsão
 
 ```bash
 # 🖥️
-export SENHA=<seed_password>
+export SENHA=<sua-senha-do-tfvars>
 PASSOS="1" ./rodar_cenario.sh PILOTO 1 http://<IP-EC2-A>     # 16 perguntas; anote quanto tempo levou
 ```
 
@@ -222,17 +226,23 @@ No resumo impresso, veja `latencia_chat`:
 Para cada repetição 1, 2, 3 (troque o `1` do comando e o `r1` do nome do arquivo pelo número da repetição; reserve até **~40 min cada**; veja a seção 5 do plano):
 
 ```bash
-# 💻 terminal 2: CPU da instância durante a repetição
-ssh -i labsuser.pem ec2-user@<IP-EC2-A>
-vmstat -t 5 | tee cpu_A_r1.txt         # deixe rodando; Ctrl+C ao fim da repetição
+# 💻 terminal 1: armazenas as metricas de carga  da instância web
+#.   durante a repetição sessoes k6
+ssh -o ServerAliveInterval=30 -i labsuser.pem ec2-user@<IP-EC2-A>
+tmux new -s teste_web
+vmstat -t 5 | tee cpu_A_r1.txt
+# deixe rodando dentro sessão tmux; Ctrl+C ao fim da repetição
 
-# 🖥️ terminal 1: o teste
-./rodar_cenario.sh A 1 http://<IP-EC2-A>
+# 🖥️ terminal 2: o teste de carga
+ssh -o ServerAliveInterval=30 -i labsuser.pem ec2-user@<IP-GERADOR>
+tmux new -s teste_gerador
+./rodar_cenario.sh A 1 http://<IP-EC2-A>. 
+# deixe rodando dentro sessão tmux no gerador;
 ```
 
-Rode dentro do `tmux`. O script faz um aquecimento e depois os passos de 1, 4 e 16 usuários.
+Rode dentro do `tmux`. O script faz um aquecimento e depois os passos de 1, 4 e 16 usuários. O `tmux` garante que o teste segue em frente, mesmo se a sessão ssh cair. Neste caso, basta abrir novamente a sessão ssh no servidor e digitar `tmux attach -t teste_web`.
 
-Não use a página do chatbot durante as medições.
+Não use a página do chatbot você mesmo durante as medições, para não impactar e gerar ruído nos seus resultados.
 
 ### 3.7 Coletar e analisar os resultados de A
 
@@ -302,7 +312,7 @@ vmstat -t 5 | tee cpu_B_r1_ec2-2.txt
 
 ```bash
 # 🖥️
-k6 run -e URL=http://<DNS-DO-ALB> -e SENHA=<seed_password> -e VUS=8 -e DURACAO=6m --out csv=resultados/falha.csv carga.js
+k6 run -e URL=http://<DNS-DO-ALB> -e SENHA=<sua-senha-do-tfvars> -e VUS=8 -e DURACAO=6m --out csv=resultados/falha.csv carga.js
 ```
 
 Aos 2 minutos, pare uma das EC2 no console (**Instance state → Stop**) e observe o Target Group.

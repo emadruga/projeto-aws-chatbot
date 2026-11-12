@@ -300,7 +300,9 @@ numa pasta sincronizada (OneDrive): a sincronização pode refazer as permissõe
 | Windows 11 | `curl.exe ifconfig.me` (no PowerShell, `curl` sem `.exe` é outro comando) |
 
 2. Edite `terraform/compute/a.tfvars`, `b.tfvars` e `b1.tfvars`: troque `SEU.IP.PUBLICO/32` pelo seu IP **com `/32`**
-   e acrescente uma senha sua para os usuários de teste `aluno01`…`aluno20`:
+   e acrescente uma senha sua para os usuários de teste `aluno01`…`aluno20` (a mesma nos três arquivos). Ela serve
+   para entrar na página do chatbot e é a `SENHA` que o teste de carga usa no gerador. Não deixe sem: o padrão
+   `trocar-esta-senha` está publicado no repositório, e a página do chatbot fica aberta na internet:
    ```hcl
    ssh_cidr      = "200.10.20.30/32"
    seed_password = "uma-senha-sua"
@@ -360,7 +362,8 @@ Se tudo passou, você está pronto para a Etapa 1.
 5. Preencher o histórico (uma vez no projeto).
 6. **Piloto** com 1 usuário: medir o **S** (tempo de uma resposta com o servidor livre).
 7. **Antes de medir:** escrever as hipóteses e preencher a tabela de previsão (abaixo).
-8. **3 repetições** de A, cada uma com `vmstat` ligado na EC2, dentro do `tmux`.
+8. **3 repetições** de A, cada uma com `vmstat` ligado na EC2, dentro do `tmux` (ver
+   [O teste de carga: como funciona a coleta](#o-teste-de-carga-como-funciona-a-coleta)).
 9. Prints do CloudWatch (RDS: CPU e conexões) e cópia dos resultados para o seu computador (ver
    [Coletar os resultados e os prints do CloudWatch](#coletar-os-resultados-e-os-prints-do-cloudwatch)).
 
@@ -456,6 +459,60 @@ pode virar gargalo. A partir do S, monte o **seu** modelo de previsão e justifi
 Escolha também um critério de "aceitável" (ex.: p95 até 60 s). A previsão é uma hipótese: no relatório você compara com
 o que mediu e explica onde errou.
 
+### O teste de carga: como funciona a coleta
+
+Este projeto é, no fundo, sobre **montar uma sessão de teste de carga**. Cada sessão tem dois lados, em duas
+máquinas diferentes, e você liga os dois ao mesmo tempo:
+
+| Lado | Máquina | Quem cria | O que roda nela | O que produz |
+|---|---|---|---|---|
+| **Servidor** | EC2 do chatbot (`<prefixo>-web-1`; em B, também `web-2`), com Ollama e Gemma 2 | **O Terraform**, já com tudo instalado (`terraform apply`) | `vmstat`: registra a CPU a cada 5 s | `cpu_A_r1.txt`, ... |
+| **Carga** | Gerador de carga (`<prefixo>-gerador-carga`) | **Você**, pelo console ([Gerador de carga](#gerador-de-carga-passo-2)) | `rodar_cenario.sh`, que chama o k6 e simula usuários fazendo perguntas | `resultados/A_r1/vus*.csv`, ... |
+
+O servidor você não precisa configurar: quando a URL responde `200`, o chatbot e o modelo já estão carregados. O
+gerador é a sua parte: criar a instância, instalar k6 e tmux e conduzir as repetições a partir dele. O gerador fica
+**fora** da arquitetura medida, assim o esforço de gerar a carga não disputa CPU com o Gemma.
+
+```
+  seu computador                 gerador de carga                    EC2 do chatbot (Ollama + Gemma)
+  ─────────────                  ─────────────────                   ──────────────────────────────
+  terminal 1 ── ssh ──────────►  tmux: rodar_cenario.sh ── HTTP ──►  responde às perguntas
+  terminal 2 ── ssh ─────────────────────────────────────────────►  tmux: vmstat -t 5 | tee cpu_A_r1.txt
+```
+
+**O que uma repetição faz.** O `rodar_cenario.sh` roda um **aquecimento** (2 usuários por 30 s, descartado) e depois
+**3 passos**, com 1, 4 e 16 usuários simultâneos. Cada passo coleta sempre **16 respostas** (1 usuário × 16 perguntas,
+4 × 4, 16 × 1), com 30 s de pausa entre os passos para a fila esvaziar. A duração depende da arquitetura: reserve até
+~40 min por repetição.
+
+**A ordem de uma repetição** (repita 3 vezes, trocando o número `1` pelo da repetição):
+
+1. **Servidor primeiro: ligar o `vmstat`.** Num terminal, entre na EC2 do chatbot e, dentro de um `tmux`:
+   ```bash
+   vmstat -t 5 | tee cpu_A_r1.txt        # em B: um por EC2 (cpu_B_r1_ec2-1.txt e cpu_B_r1_ec2-2.txt)
+   ```
+   Ligue antes da carga, para o arquivo mostrar a CPU ociosa no começo.
+2. **Depois, a carga.** Em outro terminal, entre no gerador e, dentro de um `tmux`:
+   ```bash
+   cd ~/loadtest
+   export SENHA=<sua-senha-do-tfvars>     # o valor de seed_password no seu .tfvars
+   ./rodar_cenario.sh A 1 http://<IP-EC2-A>      # em B: ./rodar_cenario.sh B 1 http://<DNS-DO-ALB>
+   ```
+   **Que senha é essa?** A `seed_password` que você escreveu nos `.tfvars` na Etapa 0.9. Ao subir, a EC2 do
+   chatbot cria os usuários de teste `aluno01` a `aluno20` com essa senha, e cada usuário virtual do k6 faz login
+   como um deles antes de perguntar. Se a senha não bater, o teste para com `login de aluno01 falhou: 401`. Em B,
+   use a senha do `b.tfvars` (o mais simples é usar a mesma nos dois arquivos).
+3. **Anotar no diário de bordo** o horário de início e de fim (o script imprime os horários de cada passo) e
+   qualquer coisa estranha. Os prints do CloudWatch usam esse intervalo.
+4. **Fim da repetição:** quando aparecer `== Fim. Resultados em resultados/A_r1/`, pare o `vmstat` com `Ctrl+C`.
+
+Durante as medições, não use a página do chatbot: as suas perguntas entrariam na fila e contaminariam o teste.
+Antes das 3 repetições, rode o **piloto** (1 usuário) para obter o S da previsão acima.
+
+Os comandos completos, passo a passo, estão no [QUICKSTART](QUICKSTART.md), seções 3.2 (gerador), 3.3 (subir A),
+3.4 (histórico), 3.5 (piloto) e 3.6 (as 3 repetições). Em B, a mecânica é a mesma (QUICKSTART 4.3), só que com um
+`vmstat` em cada EC2 e a URL do ALB.
+
 ### Coletar os resultados e os prints do CloudWatch
 
 Faça isto ao fim das 3 repetições de cada arquitetura, **antes** do `destroy`. Vale para A (passo 9 da Etapa 1) e
@@ -469,7 +526,8 @@ para B (passo 5 da Etapa 2).
 | EC2 do chatbot | Saída do `vmstat` (CPU) | `~/cpu_A_r1.txt`, ... (em B: `cpu_B_r1_ec2-1.txt`, `cpu_B_r1_ec2-2.txt`, ...) |
 
 **2. Copiar para o seu computador.** Na pasta do projeto (igual nos 3 sistemas; no Windows, no PowerShell). Use
-o IP público de cada instância, visto no console EC2 ou em `terraform output ssh`:
+o IP público de cada instância, visto no console EC2 ou com `terraform output ssh` (rodado **dentro de
+`terraform/compute`**, no mesmo clone do projeto em que você fez o `apply`):
 ```bash
 # CSVs do k6 (do gerador)
 scp -i labsuser.pem -r ec2-user@<IP-GERADOR>:~/loadtest/resultados loadtest/
@@ -483,6 +541,11 @@ scp -i labsuser.pem "ec2-user@<IP-EC2-B2>:~/cpu_B_*.txt" loadtest/resultados/
 ```
 As aspas em `"ec2-user@...:~/cpu_A_*.txt"` são necessárias: sem elas, o seu terminal tenta expandir o `*` na sua
 máquina, e não na EC2.
+
+> **`terraform output` com erro?** `Required plugins are not installed` ou `No outputs found` quer dizer que você está
+> na pasta errada ou em outra cópia do projeto: o estado do Terraform (`terraform.tfstate`) fica só na pasta onde o
+> `apply` foi feito. Volte para essa pasta `terraform/compute`. Não rode `terraform init` numa cópia nova para
+> "consertar": ela continuaria sem estado e sem outputs.
 
 **3. Salvar a configuração da arquitetura.** Ainda em `terraform/compute`, antes do `destroy`:
 ```bash
