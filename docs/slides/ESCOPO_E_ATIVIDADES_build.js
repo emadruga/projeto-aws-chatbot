@@ -184,7 +184,7 @@ stepSlide("Sessão 1 — Arquitetura A", "Sessão 1 — Subir a base e a Arquite
   "terraform apply em terraform/base (uma vez no projeto)",
   "Conferir o prefixo: terraform output prefixo",
   "Criar o gerador de carga (próximo slide)",
-  "terraform apply -var-file=a.tfvars em compute; esperar 200",
+  "terraform init e terraform apply -var-file=a.tfvars em compute; esperar 200",
   "Teste de fumaça no navegador (aluno01) e histórico",
   "Piloto com 1 usuário: medir o S",
 ], ["Antes de medir", "Escreva as suas hipóteses e a tabela de previsão (1, 4 e 16 usuários, A e B) a partir do S. Previsão errada não é problema; dado inventado é.", true],
