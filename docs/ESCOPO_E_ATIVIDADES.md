@@ -357,7 +357,7 @@ Se tudo passou, você está pronto para a Etapa 1.
 
 1. Digitar `terraform apply` dentro da pasta `terraform/base` (uma vez no projeto). Conferir o seu prefixo: `terraform output prefixo`.
 2. Criar o gerador de carga `<prefixo>-gerador-carga` e instalar k6 e tmux (ver [Gerador de carga](#gerador-de-carga-passo-2), logo abaixo).
-3. Digitar `terraform apply -var-file=a.tfvars` dentro da pasta `terraform/compute`; esperar a URL responder `200`.
+3. Dentro da pasta `terraform/compute`, digitar `terraform init` (na primeira vez) e depois `terraform apply -var-file=a.tfvars`; esperar a URL responder `200`.
 4. Teste de fumaça pelo navegador: login com `aluno01` e uma pergunta.
 5. Preencher o histórico (uma vez no projeto).
 6. **Piloto** com 1 usuário: medir o **S** (tempo de uma resposta com o servidor livre).
